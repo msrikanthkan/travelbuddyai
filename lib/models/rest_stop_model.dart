@@ -33,31 +33,31 @@ class RestStop {
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'address': address,
-    'type': type.name,
-    'distanceKm': distanceKm,
-    'latitude': latitude,
-    'longitude': longitude,
-    'isOpen': isOpen,
-    'rating': rating,
-    'facilities': facilities,
-  };
+        'id': id,
+        'name': name,
+        'address': address,
+        'type': type.name,
+        'distanceKm': distanceKm,
+        'latitude': latitude,
+        'longitude': longitude,
+        'isOpen': isOpen,
+        'rating': rating,
+        'facilities': facilities,
+      };
 
   factory RestStop.fromJson(Map<String, dynamic> json) => RestStop(
-    id: json['id'],
-    name: json['name'],
-    address: json['address'],
-    type: RestStopType.values.firstWhere(
-      (e) => e.name == json['type'],
-      orElse: () => RestStopType.restaurant,
-    ),
-    distanceKm: (json['distanceKm'] ?? 0).toDouble(),
-    latitude: (json['latitude'] ?? 0).toDouble(),
-    longitude: (json['longitude'] ?? 0).toDouble(),
-    isOpen: json['isOpen'] ?? true,
-    rating: json['rating'] ?? '0',
-    facilities: List<String>.from(json['facilities'] ?? []),
-  );
+        id: json['id'],
+        name: json['name'],
+        address: json['address'],
+        type: RestStopType.values.firstWhere(
+          (e) => e.name == json['type'],
+          orElse: () => RestStopType.restaurant,
+        ),
+        distanceKm: (json['distanceKm'] ?? 0).toDouble(),
+        latitude: (json['latitude'] ?? 0).toDouble(),
+        longitude: (json['longitude'] ?? 0).toDouble(),
+        isOpen: json['isOpen'] ?? true,
+        rating: json['rating'] ?? '0',
+        facilities: List<String>.from(json['facilities'] ?? []),
+      );
 }

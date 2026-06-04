@@ -6,7 +6,7 @@ class BudgetService {
   static const double foodCostPerPersonPerDay = 300;
   static const double tollRatePerKm = 0.5;
 
-  double calculateFuelCost(double distanceKm, double mileage = 15) {
+  double calculateFuelCost(double distanceKm, [double mileage = 15]) {
     return (distanceKm / mileage) * fuelRatePerKm * 2;
   }
 
