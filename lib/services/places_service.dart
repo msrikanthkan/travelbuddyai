@@ -3,9 +3,10 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+/// PlacesService using OpenStreetMap Nominatim API (free, no API key required)
 class PlacesService {
-  static const _apiKey = '<YOUR_GOOGLE_MAPS_API_KEY>'; // Replace with your own API key
-  static const _baseUrl = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
+  // Using Nominatim API - free and open source, no API key needed
+  static const _baseUrl = 'https://nominatim.openstreetmap.org/search';
 
   final http.Client _client;
 
@@ -15,21 +16,44 @@ class PlacesService {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return [];
 
-    final url = Uri.parse('$_baseUrl?input=${Uri.encodeQueryComponent(trimmed)}&types=(cities)&key=$_apiKey');
-    final response = await _client.get(url).timeout(const Duration(seconds: 8));
+    try {
+      // Nominatim API parameters - removed invalid featuretype parameter
+      final url = Uri.parse(
+        '$_baseUrl?q=${Uri.encodeQueryComponent(trimmed)}'
+        '&format=json'
+        '&addressdetails=1'
+        '&limit=10'
+      );
 
-    if (response.statusCode != 200) {
-      throw Exception('Places API returned status ${response.statusCode}');
+      final response = await _client.get(
+        url,
+        headers: {
+          'User-Agent': 'TravelBuddyAI/1.0', // Required by Nominatim usage policy
+        },
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode != 200) {
+        throw Exception('Nominatim API returned status ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body);
+      
+      if (data is! List) {
+        return [];
+      }
+      
+      // Extract display names from results
+      final suggestions = data
+          .cast<Map<String, dynamic>>()
+          .map((item) => item['display_name'] as String? ?? '')
+          .where((text) => text.isNotEmpty)
+          .take(10)
+          .toList();
+
+      return suggestions;
+    } catch (e) {
+      // Return empty list on error instead of throwing
+      return [];
     }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final status = data['status'] as String?;
-    if (status != 'OK' && status != 'ZERO_RESULTS') {
-      final errorMessage = data['error_message'] as String?;
-      throw Exception('Places API error: $status${errorMessage != null ? ' - $errorMessage' : ''}');
-    }
-
-    final predictions = (data['predictions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-    return predictions.map((item) => item['description'] as String? ?? '').where((text) => text.isNotEmpty).toList();
   }
 }

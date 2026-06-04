@@ -6,6 +6,7 @@ import '../services/attractions_service.dart';
 import '../services/budget_service.dart';
 import '../services/maps_service.dart';
 import '../services/places_service.dart';
+import '../services/pricing_service.dart';
 import 'budget_summary_screen.dart';
 
 class BudgetPlannerForm extends StatefulWidget {
@@ -21,17 +22,25 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
   final _destinationController = TextEditingController();
   final _distanceController = TextEditingController();
   final _daysController = TextEditingController(text: '3');
-  final _familySizeController = TextEditingController(text: '2');
+  final _adultsController = TextEditingController(text: '2');
+  final _kidsController = TextEditingController(text: '0');
   String _hotelCategory = 'budget';
-  double _attractionBudget = 1000;
+  String _travelType = 'road'; // road, train, or flight
+  DateTime? _startDate;
+  DateTime? _returnDate;
+  double _attractionBudget = 3000;
   bool _isLoadingDistance = false;
   bool _isLoadingAttractions = false;
   bool _isSearchingDestination = false;
+  bool _isSearchingOrigin = false;
   String? _destinationSearchError;
+  String? _originSearchError;
   String? _distanceError;
   DateTime? _lastEstimateTime;
   DateTime? _lastDestinationQueryTime;
+  DateTime? _lastOriginQueryTime;
   List<String> _destinationSuggestions = [];
+  List<String> _originSuggestions = [];
   List<Attraction> _suggestedAttractions = [];
 
   static final Map<String, double> _knownRouteFallbacks = {
@@ -55,7 +64,8 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
     _destinationController.dispose();
     _distanceController.dispose();
     _daysController.dispose();
-    _familySizeController.dispose();
+    _adultsController.dispose();
+    _kidsController.dispose();
     super.dispose();
   }
 
@@ -149,6 +159,49 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
     }
   }
 
+  Future<void> _searchOriginSuggestions(String query) async {
+    final now = DateTime.now();
+    _lastOriginQueryTime = now;
+
+    if (query.trim().length < 2) {
+      setState(() {
+        _originSuggestions = [];
+        _originSearchError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchingOrigin = true;
+      _originSearchError = null;
+    });
+
+    try {
+      final service = PlacesService();
+      final suggestions = await service.searchPlaceSuggestions(query);
+      if (!mounted) return;
+      if (_lastOriginQueryTime != now) return;
+
+      setState(() {
+        _originSuggestions = suggestions;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      if (_lastOriginQueryTime != now) return;
+      setState(() {
+        _originSearchError = error.toString();
+        _originSuggestions = [];
+      });
+    } finally {
+      if (!mounted) return;
+      if (_lastOriginQueryTime == now) {
+        setState(() {
+          _isSearchingOrigin = false;
+        });
+      }
+    }
+  }
+
   double? _estimateDistanceFallback(String origin, String destination) {
     final o = origin.toLowerCase();
     final d = destination.toLowerCase();
@@ -191,37 +244,102 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
       _isLoadingAttractions = false;
       _suggestedAttractions = attractions;
     });
+    
+    // Also update attraction budget based on destination
+    _updateAttractionBudget();
   }
 
-  void _submit() {
+  Future<void> _updateAttractionBudget() async {
+    if (_destinationController.text.isEmpty) return;
+    
+    final days = int.tryParse(_daysController.text) ?? 3;
+    final adults = int.tryParse(_adultsController.text) ?? 2;
+    final kids = int.tryParse(_kidsController.text) ?? 0;
+    final familySize = adults + kids;
+    
+    try {
+      final pricingService = PricingService();
+      final suggestedBudget = await pricingService.getAttractionBudget(
+        _destinationController.text.trim(),
+        days,
+        familySize,
+      );
+      
+      if (!mounted) return;
+      setState(() {
+        _attractionBudget = suggestedBudget;
+      });
+    } catch (e) {
+      // Keep current budget if fetch fails
+    }
+  }
+
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     final distance = double.parse(_distanceController.text);
     final days = int.parse(_daysController.text);
-    final familySize = int.parse(_familySizeController.text);
+    final adults = int.parse(_adultsController.text);
+    final kids = int.parse(_kidsController.text);
+    final familySize = adults + kids;
+    final origin = _originController.text.trim();
     final destination = _destinationController.text.trim();
 
-    final service = BudgetService();
-    final budget = service.calculateTotalBudget(
-      tripId: destination.isEmpty ? 'trip' : destination,
-      distanceKm: distance,
-      days: days,
-      familySize: familySize,
-      hotelCategory: _hotelCategory,
-      attractionBudget: _attractionBudget,
-    );
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => BudgetSummaryScreen(
-          budget: budget,
-          destination: destination,
-          days: days,
-          familySize: familySize,
-          hotelCategory: _hotelCategory,
-        ),
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
+
+    try {
+      final service = BudgetService();
+      final budget = await service.calculateTotalBudget(
+        tripId: destination.isEmpty ? 'trip' : destination,
+        origin: origin,
+        destination: destination,
+        distanceKm: distance,
+        days: days,
+        adults: adults,
+        kids: kids,
+        hotelCategory: _hotelCategory,
+        travelType: _travelType,
+        attractionBudget: _attractionBudget,
+      );
+
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Navigate to budget summary
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BudgetSummaryScreen(
+            budget: budget,
+            destination: destination,
+            days: days,
+            familySize: familySize,
+            hotelCategory: _hotelCategory,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+      
+      // Show error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error calculating budget: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -293,8 +411,47 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                                 prefixIcon: const Icon(Icons.location_on),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
+                              onChanged: (value) {
+                                _searchOriginSuggestions(value);
+                              },
                               validator: (value) => value == null || value.isEmpty ? 'Enter origin' : null,
                             ),
+                            if (_originSuggestions.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                                ),
+                                child: Column(
+                                  children: _originSuggestions.map((suggestion) {
+                                    return InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _originController.text = suggestion;
+                                          _originSuggestions = [];
+                                        });
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.location_on, size: 18, color: Color(0xFF7F00FF)),
+                                            const SizedBox(width: 10),
+                                            Expanded(child: Text(suggestion, style: const TextStyle(fontSize: 14))),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ],
+                            if (_originSearchError != null) ...[
+                              const SizedBox(height: 8),
+                              Text(_originSearchError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                            ],
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _destinationController,
@@ -390,6 +547,120 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    // Travel Type & Dates Card
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Travel Details',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 16),
+                            // Travel Type Dropdown
+                            DropdownButtonFormField<String>(
+                              value: _travelType,
+                              decoration: InputDecoration(
+                                labelText: 'Travel Type',
+                                prefixIcon: const Icon(Icons.directions),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'road', child: Text('🚗 Road Trip')),
+                                DropdownMenuItem(value: 'train', child: Text('🚂 Train')),
+                                DropdownMenuItem(value: 'flight', child: Text('✈️ Flight')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _travelType = value!;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            // Start Date
+                            InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: _startDate ?? DateTime.now(),
+                                  firstDate: DateTime.now(),
+                                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                                );
+                                if (date != null) {
+                                  setState(() {
+                                    _startDate = date;
+                                    // Auto-calculate return date if days are set
+                                    if (_daysController.text.isNotEmpty) {
+                                      final days = int.tryParse(_daysController.text) ?? 0;
+                                      if (days > 0) {
+                                        _returnDate = date.add(Duration(days: days));
+                                      }
+                                    }
+                                  });
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: InputDecoration(
+                                  labelText: 'Start Date',
+                                  prefixIcon: const Icon(Icons.calendar_today),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text(
+                                  _startDate == null
+                                      ? 'Select start date'
+                                      : '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}',
+                                  style: TextStyle(
+                                    color: _startDate == null ? Colors.grey : Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Return Date
+                            InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: _returnDate ?? _startDate?.add(const Duration(days: 3)) ?? DateTime.now().add(const Duration(days: 3)),
+                                  firstDate: _startDate ?? DateTime.now(),
+                                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                                );
+                                if (date != null) {
+                                  setState(() {
+                                    _returnDate = date;
+                                    // Auto-calculate days
+                                    if (_startDate != null) {
+                                      final days = date.difference(_startDate!).inDays;
+                                      _daysController.text = days.toString();
+                                    }
+                                  });
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: InputDecoration(
+                                  labelText: 'Return Date',
+                                  prefixIcon: const Icon(Icons.event),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text(
+                                  _returnDate == null
+                                      ? 'Select return date'
+                                      : '${_returnDate!.day}/${_returnDate!.month}/${_returnDate!.year}',
+                                  style: TextStyle(
+                                    color: _returnDate == null ? Colors.grey : Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     // Trip Duration & Family Card
                     Card(
                       elevation: 2,
@@ -404,20 +675,35 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _daysController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Trip Duration (Days)',
+                                prefixIcon: const Icon(Icons.calendar_today),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) return 'Enter days';
+                                if (int.tryParse(value) == null) return 'Enter valid days';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
                             Row(
                               children: [
                                 Expanded(
                                   child: TextFormField(
-                                    controller: _daysController,
+                                    controller: _adultsController,
                                     keyboardType: TextInputType.number,
                                     decoration: InputDecoration(
-                                      labelText: 'Days',
-                                      prefixIcon: const Icon(Icons.calendar_today),
+                                      labelText: 'Adults',
+                                      prefixIcon: const Icon(Icons.person),
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
                                     validator: (value) {
-                                      if (value == null || value.isEmpty) return 'Days';
-                                      if (int.tryParse(value) == null) return 'Valid days';
+                                      if (value == null || value.isEmpty) return 'Required';
+                                      if (int.tryParse(value) == null) return 'Valid #';
                                       return null;
                                     },
                                   ),
@@ -425,15 +711,15 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: TextFormField(
-                                    controller: _familySizeController,
+                                    controller: _kidsController,
                                     keyboardType: TextInputType.number,
                                     decoration: InputDecoration(
-                                      labelText: 'Family Size',
-                                      prefixIcon: const Icon(Icons.people),
+                                      labelText: 'Kids',
+                                      prefixIcon: const Icon(Icons.child_care),
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
                                     validator: (value) {
-                                      if (value == null || value.isEmpty) return 'Size';
+                                      if (value == null || value.isEmpty) return 'Required';
                                       if (int.tryParse(value) == null) return 'Valid #';
                                       return null;
                                     },
