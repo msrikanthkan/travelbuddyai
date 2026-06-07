@@ -88,11 +88,14 @@ class BudgetService {
     required int kids,
     required String hotelCategory,
     required String travelType, // 'road', 'train', or 'flight'
+    String trainClass = 'ac3tier', // sleeper, ac3tier, ac2tier, ac1st
+    String flightClass = 'economy', // economy, premium_economy, business
     double? attractionBudget,
   }) async {
     final familySize = adults + kids;
     
-    double transportCost = 0;
+    double fuelCost = 0;
+    double ticketCost = 0;
     double tollCost = 0;
     
     // Calculate transport cost based on travel type
@@ -102,27 +105,32 @@ class BudgetService {
         calculateFuelCost(distanceKm, origin),
         calculateTollCharges(distanceKm, origin, destination),
       ]);
-      transportCost = results[0];
+      fuelCost = results[0];
       tollCost = results[1];
+      ticketCost = 0;
     } else if (travelType == 'train') {
-      // Train: ticket cost (no tolls)
-      transportCost = await _pricingService.getTrainTicketPrice(
+      // Train: ticket cost (no fuel, no tolls)
+      ticketCost = await _pricingService.getTrainTicketPrice(
         origin: origin,
         destination: destination,
         distanceKm: distanceKm,
         adults: adults,
         kids: kids,
+        trainClass: trainClass,
       );
+      fuelCost = 0;
       tollCost = 0;
     } else if (travelType == 'flight') {
-      // Flight: ticket cost (no tolls)
-      transportCost = await _pricingService.getFlightTicketPrice(
+      // Flight: ticket cost (no fuel, no tolls)
+      ticketCost = await _pricingService.getFlightTicketPrice(
         origin: origin,
         destination: destination,
         distanceKm: distanceKm,
         adults: adults,
         kids: kids,
+        flightClass: flightClass,
       );
+      fuelCost = 0;
       tollCost = 0;
     }
     
@@ -137,7 +145,10 @@ class BudgetService {
 
     return Budget(
       tripId: tripId,
-      fuelCost: transportCost, // This will be fuel for road, ticket for train/flight
+      travelType: travelType,
+      travelClass: travelType == 'train' ? trainClass : (travelType == 'flight' ? flightClass : ''),
+      fuelCost: fuelCost,
+      ticketCost: ticketCost,
       hotelCost: results[0],
       foodCost: results[1],
       tollCharges: tollCost,

@@ -1,8 +1,25 @@
 import 'package:flutter/material.dart';
-
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'services/train_data_service.dart';
 import 'screens/splash_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    
+    // Initialize Train Data Service
+    await TrainDataService().initialize();
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+    // App will continue with fallback data
+  }
+  
   runApp(const MyApp());
 }
 

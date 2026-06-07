@@ -15,21 +15,30 @@ class PricingService {
     required double distanceKm,
     required int adults,
     required int kids,
+    String trainClass = 'ac3tier', // sleeper, ac3tier, ac2tier, ac1st
   }) async {
     try {
       // Base fare per km for different classes (Indian Railways approximate rates)
-      const double sleeper = 0.50; // Sleeper class
-      const double ac3Tier = 1.20; // AC 3-Tier
-      const double ac2Tier = 1.80; // AC 2-Tier
+      final fareRates = {
+        'sleeper': 0.50,   // Sleeper class
+        'ac3tier': 1.20,   // AC 3-Tier
+        'ac2tier': 1.80,   // AC 2-Tier
+        'ac1st': 3.00,     // AC 1st Class
+      };
       
-      // Use AC 3-Tier as default (most common for families)
-      final baseFarePerKm = ac3Tier;
+      // Reservation charges vary by class
+      final reservationCharges = {
+        'sleeper': 20.0,
+        'ac3tier': 40.0,
+        'ac2tier': 50.0,
+        'ac1st': 60.0,
+      };
+      
+      final baseFarePerKm = fareRates[trainClass] ?? fareRates['ac3tier']!;
+      final reservationCharge = reservationCharges[trainClass] ?? reservationCharges['ac3tier']!;
       
       // Calculate base fare
       final baseFare = distanceKm * baseFarePerKm;
-      
-      // Add reservation charges
-      const reservationCharge = 40.0;
       
       // Calculate total for adults
       final adultFare = (baseFare + reservationCharge) * adults;
@@ -54,13 +63,14 @@ class PricingService {
     required double distanceKm,
     required int adults,
     required int kids,
+    String flightClass = 'economy', // economy, premium_economy, business
   }) async {
     try {
       // Determine route tier (metro to metro is cheaper due to competition)
       final originTier = _getCityTier(origin);
       final destTier = _getCityTier(destination);
       
-      // Base fare calculation
+      // Base fare calculation for economy
       double baseFarePerPerson;
       
       if (originTier == 1 && destTier == 1) {
@@ -73,6 +83,15 @@ class PricingService {
         // Smaller cities - higher pricing
         baseFarePerPerson = 5000 + (distanceKm * 3.5);
       }
+      
+      // Apply class multiplier
+      final classMultipliers = {
+        'economy': 1.0,
+        'premium_economy': 1.5,
+        'business': 2.5,
+      };
+      
+      baseFarePerPerson *= classMultipliers[flightClass] ?? 1.0;
       
       // Add taxes and fees (approximately 20%)
       baseFarePerPerson *= 1.20;

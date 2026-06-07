@@ -7,6 +7,9 @@ class AttractionsService {
   
   // Overpass API for fetching real POI data from OpenStreetMap
   static const String _overpassUrl = 'https://overpass-api.de/api/interpreter';
+  
+  // Wikimedia Commons API for fetching real images
+  static const String _wikimediaUrl = 'https://commons.wikimedia.org/w/api.php';
 
   AttractionsService([http.Client? client]) : _client = client ?? http.Client();
 
@@ -115,12 +118,15 @@ out skel qt;
         // Skip if already added
         if (attractions.any((a) => a.name == name)) continue;
 
-        final description = tags['description'] as String? ?? 
-                          tags['tourism'] as String? ?? 
-                          tags['historic'] as String? ?? 
+        final description = tags['description'] as String? ??
+                          tags['tourism'] as String? ??
+                          tags['historic'] as String? ??
                           'Popular attraction in $cityName';
 
         final category = _determineCategory(tags);
+        
+        // Fetch real image for this attraction
+        final images = await _fetchAttractionImages(name, cityName);
         
         attractions.add(Attraction(
           id: 'osm_${element['id']}',
@@ -129,7 +135,7 @@ out skel qt;
           location: cityName,
           ticketPrice: _estimateTicketPrice(category, tags),
           rating: 4.0 + (index % 10) / 10, // Simulated rating
-          images: ['https://picsum.photos/800/600?random=${1000 + index}'],
+          images: images,
           category: category,
           isKidFriendly: _isKidFriendly(category),
         ));
@@ -142,6 +148,74 @@ out skel qt;
       print('Error fetching from Overpass API: $e');
       return [];
     }
+  }
+
+  /// Fetch real images for an attraction from Wikipedia
+  Future<List<String>> _fetchAttractionImages(String attractionName, String cityName) async {
+    // Try multiple search variations
+    final searchQueries = [
+      attractionName,
+      '$attractionName $cityName',
+      '$attractionName temple',
+      '$attractionName india',
+    ];
+
+    for (final query in searchQueries) {
+      try {
+        final wikipediaUrl = 'https://en.wikipedia.org/w/api.php';
+        
+        // Search for the page
+        final searchUrl = Uri.parse(
+          '$wikipediaUrl?action=query&format=json&list=search&srsearch=${Uri.encodeQueryComponent(query)}&srlimit=3&origin=*'
+        );
+
+        final searchResponse = await _client.get(searchUrl).timeout(const Duration(seconds: 5));
+
+        if (searchResponse.statusCode == 200) {
+          final searchData = jsonDecode(searchResponse.body) as Map<String, dynamic>;
+          final searchResults = searchData['query']?['search'] as List<dynamic>?;
+          
+          if (searchResults != null && searchResults.isNotEmpty) {
+            // Try each search result
+            for (final result in searchResults) {
+              final pageTitle = result['title'] as String;
+              
+              // Get the page image
+              final imageUrl = Uri.parse(
+                '$wikipediaUrl?action=query&format=json&prop=pageimages&piprop=original&titles=${Uri.encodeQueryComponent(pageTitle)}&origin=*'
+              );
+
+              final imageResponse = await _client.get(imageUrl).timeout(const Duration(seconds: 5));
+
+              if (imageResponse.statusCode == 200) {
+                final imageData = jsonDecode(imageResponse.body) as Map<String, dynamic>;
+                final pages = imageData['query']?['pages'] as Map<String, dynamic>?;
+                
+                if (pages != null) {
+                  for (final page in pages.values) {
+                    final original = page['original'] as Map<String, dynamic>?;
+                    final imageUrl = original?['source'] as String?;
+                    if (imageUrl != null && imageUrl.isNotEmpty) {
+                      print('Found image for $attractionName: $imageUrl');
+                      return [imageUrl];
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching images from Wikipedia for query "$query": $e');
+        continue;
+      }
+    }
+
+    // Fallback: Use seeded placeholder images
+    print('No Wikipedia image found for $attractionName, using placeholder');
+    return [
+      'https://picsum.photos/seed/${attractionName.hashCode}/800/600',
+    ];
   }
 
   String _determineCategory(Map<String, dynamic> tags) {
@@ -195,7 +269,7 @@ out skel qt;
         location: cityName,
         ticketPrice: 100 + (random % 200).toDouble(),
         rating: 4.0 + (random % 10) / 10,
-        images: ['https://picsum.photos/800/600?random=${1000 + random}'],
+        images: ['https://picsum.photos/seed/${cityName}museum/800/600'],
         category: 'Museum',
         isKidFriendly: true,
       ),
@@ -206,7 +280,7 @@ out skel qt;
         location: cityName,
         ticketPrice: 0,
         rating: 4.2 + (random % 8) / 10,
-        images: ['https://picsum.photos/800/600?random=${2000 + random}'],
+        images: ['https://picsum.photos/seed/${cityName}park/800/600'],
         category: 'Nature',
         isKidFriendly: true,
       ),
@@ -217,7 +291,7 @@ out skel qt;
         location: cityName,
         ticketPrice: (50 + (random % 150)).toDouble(),
         rating: 4.1 + (random % 9) / 10,
-        images: ['https://picsum.photos/800/600?random=${3000 + random}'],
+        images: ['https://picsum.photos/seed/${cityName}heritage/800/600'],
         category: 'Historical',
         isKidFriendly: true,
       ),
