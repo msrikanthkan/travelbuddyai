@@ -30,7 +30,7 @@ class LocalFareEstimate {
 class GoogleSearchService {
   static const _apiKey = '<YOUR_GOOGLE_CUSTOM_SEARCH_API_KEY>';
   static const _searchEngineId = '<YOUR_SEARCH_ENGINE_ID>';
-  static const _baseUrl = 'https://www.googleapis.com/customsearch/v1';
+  static const _baseUrl = 'https://customsearch.googleapis.com/customsearch/v1';
 
   final http.Client _client;
 

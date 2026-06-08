@@ -9,6 +9,9 @@ import '../services/maps_service.dart';
 import '../services/places_service.dart';
 import '../services/pricing_service.dart';
 import '../services/train_data_service.dart';
+import '../services/live_destinations_api_service.dart';
+import '../services/trending_destinations_service.dart';
+import '../services/destination_insights_service.dart';
 import 'budget_summary_screen.dart';
 
 class BudgetPlannerForm extends StatefulWidget {
@@ -20,6 +23,15 @@ class BudgetPlannerForm extends StatefulWidget {
 
 class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
   final _formKey = GlobalKey<FormState>();
+  
+  // New fields for occasion-based planning
+  String _occasionType = 'casual'; // casual, wedding, birthday, devotional, cultural, adventure, other
+  final _numberOfPeopleController = TextEditingController(text: '2');
+  final _budgetController = TextEditingController();
+  List<Map<String, dynamic>> _trendingDestinations = [];
+  bool _isLoadingTrending = false;
+  bool _showDestinationSuggestions = true;
+  
   final _originController = TextEditingController(text: 'Visakhapatnam');
   final _destinationController = TextEditingController();
   final _distanceController = TextEditingController();
@@ -49,6 +61,9 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
   List<String> _destinationSuggestions = [];
   List<String> _originSuggestions = [];
   List<Attraction> _suggestedAttractions = [];
+  List<DestinationInsight> _destinationInsights = [];
+  bool _isLoadingInsights = false;
+  bool _showInsights = false;
 
   static final Map<String, double> _knownRouteFallbacks = {
     'visakhapatnam-hyderabad': 625.0,
@@ -67,6 +82,8 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
 
   @override
   void dispose() {
+    _numberOfPeopleController.dispose();
+    _budgetController.dispose();
     _originController.dispose();
     _destinationController.dispose();
     _distanceController.dispose();
@@ -74,6 +91,643 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
     _adultsController.dispose();
     _kidsController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchTrendingDestinations() async {
+    if (_budgetController.text.isEmpty || _daysController.text.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingTrending = true;
+      _showDestinationSuggestions = true; // Always show when fetching new data
+    });
+
+    try {
+      final budget = double.tryParse(_budgetController.text) ?? 0;
+      final duration = int.tryParse(_daysController.text) ?? 3;
+      
+      List<Map<String, dynamic>> destinations = [];
+      
+      // Try live API first (Google Custom Search)
+      try {
+        final liveService = LiveDestinationsApiService();
+        destinations = await liveService.getTrendingDestinations(
+          occasionType: _occasionType,
+          budget: budget,
+          duration: duration,
+        );
+        print('✅ Fetched ${destinations.length} destinations from live API');
+      } catch (e) {
+        print('⚠️ Live API failed: $e');
+      }
+      
+      // Fallback to curated destinations if live API fails or returns empty
+      if (destinations.isEmpty) {
+        print('📋 Using fallback curated destinations');
+        final trendingService = TrendingDestinationsService();
+        destinations = await trendingService.getTrendingDestinations(
+          occasionType: _occasionType,
+          budget: budget,
+          duration: duration,
+          userDestination: _destinationController.text.isNotEmpty
+              ? _destinationController.text
+              : null,
+        );
+      }
+
+      setState(() {
+        _trendingDestinations = destinations;
+        _isLoadingTrending = false;
+      });
+    } catch (e) {
+      print('❌ Error fetching trending destinations: $e');
+      setState(() {
+        _isLoadingTrending = false;
+      });
+    }
+  }
+
+  void _onOccasionChanged(String? value) {
+    if (value != null) {
+      setState(() {
+        _occasionType = value;
+        _trendingDestinations = [];
+        _showDestinationSuggestions = true; // Show suggestions again
+      });
+      _fetchTrendingDestinations();
+    }
+  }
+
+  void _showDestinationInsights(BuildContext context, Map<String, dynamic> destination) {
+    final insights = destination['insights'] as Map<String, dynamic>?;
+    if (insights == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            destination['name'],
+                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Text(
+                                destination['country'],
+                                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                              ),
+                              if (destination['weather'] != null) ...[
+                                const SizedBox(width: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF7F00FF), Color(0xFFB400D9)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        destination['weather']['icon'] ?? '🌤️',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${destination['weather']['temperature'].toStringAsFixed(1)}°C',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF7F00FF), Color(0xFFB400D9)],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.trending_up, color: Colors.white, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${insights['trendScore']}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Trending Reason
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7F00FF).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lightbulb, color: Color(0xFF7F00FF)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          insights['trendingReason'],
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Live Weather Section (if available)
+                if (destination['weather'] != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF00B4DB).withOpacity(0.15),
+                          const Color(0xFF0083B0).withOpacity(0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF00B4DB).withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.wb_sunny, color: Color(0xFF00B4DB), size: 20),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Live Weather',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'LIVE',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Text(
+                              destination['weather']['icon'] ?? '🌤️',
+                              style: const TextStyle(fontSize: 40),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${destination['weather']['temperature'].toStringAsFixed(1)}°C',
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF00B4DB),
+                                    ),
+                                  ),
+                                  Text(
+                                    destination['weather']['description'].toString().toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildWeatherDetail(
+                              '🌡️',
+                              'Feels Like',
+                              '${destination['weather']['feelsLike'].toStringAsFixed(0)}°C',
+                            ),
+                            _buildWeatherDetail(
+                              '💧',
+                              'Humidity',
+                              '${destination['weather']['humidity']}%',
+                            ),
+                            _buildWeatherDetail(
+                              '💨',
+                              'Wind',
+                              '${destination['weather']['windSpeed'].toStringAsFixed(1)} m/s',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'High: ${destination['weather']['tempMax'].toStringAsFixed(0)}°C',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(width: 16),
+                            Text(
+                              'Low: ${destination['weather']['tempMin'].toStringAsFixed(0)}°C',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+                const SizedBox(height: 20),
+                
+                // Key Stats
+                const Text(
+                  'Travel Insights',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                _buildInsightRow(Icons.people, 'Popularity', '#${insights['popularityRank']} in ${destination['bestFor']}'),
+                _buildInsightRow(Icons.visibility, 'Visitors', insights['avgVisitors']),
+                _buildInsightRow(Icons.calendar_today, 'Peak Season', insights['peakSeason']),
+                _buildInsightRow(Icons.wb_sunny, 'Best Time', insights['bestTime']),
+                _buildInsightRow(Icons.currency_rupee, 'Avg Cost', insights['avgCost']),
+                _buildInsightRow(Icons.groups, 'Crowd Level', insights['crowdLevel']),
+                _buildInsightRow(Icons.cloud, 'Weather Rating', '${insights['weatherRating']}/5'),
+                _buildInsightRow(Icons.trending_up, 'Recent Trend', insights['recentTrend']),
+                _buildInsightRow(Icons.star, 'Unique Feature', insights['uniqueFeature']),
+                
+                const SizedBox(height: 20),
+                
+                // Top Activities/Attractions
+                if (insights['topActivities'] != null) ...[
+                  const Text(
+                    'Top Activities',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: (insights['topActivities'] as List).map((activity) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7F00FF).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF7F00FF).withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          activity,
+                          style: const TextStyle(color: Color(0xFF7F00FF), fontSize: 12),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+                
+                // Select Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _destinationController.text = destination['name'];
+                        _showDestinationSuggestions = false;
+                      });
+                      _estimateDistance();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7F00FF),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Select This Destination', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInsightRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF7F00FF)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightCard(DestinationInsight insight) {
+    // Color schemes for different insight types
+    final colorSchemes = {
+      'weather': [const Color(0xFF00B4DB), const Color(0xFF0083B0)],
+      'hotels': [const Color(0xFFFF6B6B), const Color(0xFFEE5A6F)],
+      'temperature': [const Color(0xFFFF9966), const Color(0xFFFF5E62)],
+      'tour_package': [const Color(0xFF7F00FF), const Color(0xFFB400D9)],
+      'distance': [const Color(0xFF11998E), const Color(0xFF38EF7D)],
+      'popular_times': [const Color(0xFFFFB75E), const Color(0xFFED8F03)],
+      'transport': [const Color(0xFF4776E6), const Color(0xFF8E54E9)],
+      'food': [const Color(0xFFFF6B95), const Color(0xFFFFC796)],
+    };
+
+    final colors = colorSchemes[insight.type] ?? [const Color(0xFF7F00FF), const Color(0xFFB400D9)];
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors[0].withOpacity(0.1),
+            colors[1].withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors[0].withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: colors[0].withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            // Show detailed insight in a dialog
+            _showInsightDetails(insight);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: colors),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors[0].withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        insight.icon ?? '📍',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.arrow_forward_ios, size: 12, color: colors[0].withOpacity(0.5)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  insight.subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                if (insight.value != null)
+                  Text(
+                    insight.value!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: colors[0],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showInsightDetails(DestinationInsight insight) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.4,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF7F00FF), Color(0xFFB400D9)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            insight.icon ?? '📍',
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                insight.title,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                insight.subtitle,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    if (insight.value != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF7F00FF).withOpacity(0.1),
+                              const Color(0xFFB400D9).withOpacity(0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: Color(0xFF7F00FF)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                insight.value!,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF7F00FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Got it',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _estimateDistance() async {
@@ -131,6 +785,8 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
       setState(() {
         _destinationSuggestions = [];
         _destinationSearchError = null;
+        _destinationInsights = [];
+        _showInsights = false;
       });
       return;
     }
@@ -138,6 +794,7 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
     setState(() {
       _isSearchingDestination = true;
       _destinationSearchError = null;
+      _showInsights = true;
     });
 
     try {
@@ -149,6 +806,9 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
       setState(() {
         _destinationSuggestions = suggestions;
       });
+      
+      // Fetch insights for the query
+      _fetchDestinationInsights(query);
     } catch (error) {
       if (!mounted) return;
       if (_lastDestinationQueryTime != now) return;
@@ -163,6 +823,31 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
           _isSearchingDestination = false;
         });
       }
+    }
+  }
+
+  Future<void> _fetchDestinationInsights(String destination) async {
+    if (destination.trim().length < 3) return;
+
+    setState(() {
+      _isLoadingInsights = true;
+    });
+
+    try {
+      final insightsService = DestinationInsightsService();
+      final insights = await insightsService.getDestinationInsights(destination);
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _destinationInsights = insights;
+        _isLoadingInsights = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingInsights = false;
+      });
     }
   }
 
@@ -454,6 +1139,303 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                 key: _formKey,
                 child: Column(
                   children: [
+                    // Occasion Type Card
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'What\'s the Occasion?',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<String>(
+                              value: _occasionType,
+                              decoration: InputDecoration(
+                                labelText: 'Select Occasion Type',
+                                prefixIcon: const Icon(Icons.celebration),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'casual', child: Text('Casual Trip')),
+                                DropdownMenuItem(value: 'wedding', child: Text('Wedding')),
+                                DropdownMenuItem(value: 'birthday', child: Text('Birthday')),
+                                DropdownMenuItem(value: 'devotional', child: Text('Devotional')),
+                                DropdownMenuItem(value: 'cultural', child: Text('Cultural')),
+                                DropdownMenuItem(value: 'adventure', child: Text('Adventure')),
+                                DropdownMenuItem(value: 'other', child: Text('Other')),
+                              ],
+                              onChanged: _onOccasionChanged,
+                              validator: (value) => value == null ? 'Select occasion type' : null,
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _numberOfPeopleController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'Number of People',
+                                      prefixIcon: const Icon(Icons.people),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) return 'Enter number of people';
+                                      if (int.tryParse(value) == null || int.parse(value) < 1) {
+                                        return 'Enter valid number';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) => _fetchTrendingDestinations(),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _daysController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      labelText: 'Duration (Days)',
+                                      prefixIcon: const Icon(Icons.calendar_today),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) return 'Enter days';
+                                      if (int.tryParse(value) == null || int.parse(value) < 1) {
+                                        return 'Enter valid days';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) => _fetchTrendingDestinations(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _budgetController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Total Budget (₹)',
+                                prefixIcon: const Icon(Icons.currency_rupee),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                helperText: 'Enter your approximate budget',
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) return 'Enter budget';
+                                if (double.tryParse(value) == null || double.parse(value) < 1000) {
+                                  return 'Enter valid budget (min ₹1000)';
+                                }
+                                return null;
+                              },
+                              onChanged: (value) => _fetchTrendingDestinations(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Trending Destinations Section
+                    if (_isLoadingTrending)
+                      const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                CircularProgressIndicator(),
+                                SizedBox(height: 12),
+                                Text('Finding best destinations for you...'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (_trendingDestinations.isNotEmpty && _showDestinationSuggestions)
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Trending Destinations',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _showDestinationSuggestions = false;
+                                      });
+                                    },
+                                    child: const Text('Skip'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                height: 180,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: _trendingDestinations.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                  itemBuilder: (context, index) {
+                                    final dest = _trendingDestinations[index];
+                                    return InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _destinationController.text = dest['name'];
+                                          _showDestinationSuggestions = false;
+                                        });
+                                        _estimateDistance();
+                                      },
+                                      child: Container(
+                                        width: 200,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(12),
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              const Color(0xFF7F00FF).withOpacity(0.8),
+                                              const Color(0xFFB400D9).withOpacity(0.8),
+                                            ],
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.all(12),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    dest['name'],
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white.withOpacity(0.3),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      const Icon(Icons.star, color: Colors.amber, size: 14),
+                                                      const SizedBox(width: 2),
+                                                      Text(
+                                                        dest['rating'].toString(),
+                                                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  dest['country'],
+                                                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
+                                                ),
+                                                if (dest['weather'] != null) ...[
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white.withOpacity(0.25),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        Text(
+                                                          dest['weather']['icon'] ?? '🌤️',
+                                                          style: const TextStyle(fontSize: 12),
+                                                        ),
+                                                        const SizedBox(width: 4),
+                                                        Text(
+                                                          '${dest['weather']['temperature'].toStringAsFixed(0)}°C',
+                                                          style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Expanded(
+                                              child: Text(
+                                                dest['description'],
+                                                style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 13),
+                                                maxLines: 3,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                if (dest['highlights'] != null)
+                                                  Expanded(
+                                                    child: Wrap(
+                                                      spacing: 4,
+                                                      runSpacing: 4,
+                                                      children: (dest['highlights'] as List).take(2).map((highlight) {
+                                                        return Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.white.withOpacity(0.2),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            highlight,
+                                                            style: const TextStyle(color: Colors.white, fontSize: 10),
+                                                          ),
+                                                        );
+                                                      }).toList(),
+                                                    ),
+                                                  ),
+                                                if (dest['insights'] != null)
+                                                  IconButton(
+                                                    icon: const Icon(Icons.info_outline, color: Colors.white, size: 20),
+                                                    onPressed: () => _showDestinationInsights(context, dest),
+                                                    padding: EdgeInsets.zero,
+                                                    constraints: const BoxConstraints(),
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
                     // Origin & Destination Card
                     Card(
                       elevation: 2,
@@ -522,6 +1504,19 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                               decoration: InputDecoration(
                                 labelText: 'Destination',
                                 prefixIcon: const Icon(Icons.location_on_outlined),
+                                suffixIcon: _showInsights && _destinationController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.close, size: 20),
+                                        onPressed: () {
+                                          setState(() {
+                                            _destinationController.clear();
+                                            _destinationSuggestions = [];
+                                            _destinationInsights = [];
+                                            _showInsights = false;
+                                          });
+                                        },
+                                      )
+                                    : null,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onChanged: (value) {
@@ -529,35 +1524,214 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                               },
                               validator: (value) => value == null || value.isEmpty ? 'Enter destination' : null,
                             ),
-                            if (_destinationSuggestions.isNotEmpty) ...[
-                              const SizedBox(height: 8),
+                            // Insane UI for Destination Insights
+                            if (_showInsights && (_destinationSuggestions.isNotEmpty || _destinationInsights.isNotEmpty)) ...[
+                              const SizedBox(height: 12),
                               Container(
+                                constraints: const BoxConstraints(maxHeight: 500),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.white,
+                                      const Color(0xFF7F00FF).withOpacity(0.02),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFF7F00FF).withOpacity(0.2), width: 2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF7F00FF).withOpacity(0.15),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
                                 ),
-                                child: Column(
-                                  children: _destinationSuggestions.map((suggestion) {
-                                    return InkWell(
-                                      onTap: () {
-                                        setState(() {
-                                          _destinationController.text = suggestion;
-                                          _destinationSuggestions = [];
-                                        });
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF7F00FF)),
-                                            const SizedBox(width: 10),
-                                            Expanded(child: Text(suggestion, style: const TextStyle(fontSize: 14))),
-                                          ],
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Header with gradient
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                const Color(0xFF7F00FF).withOpacity(0.1),
+                                                const Color(0xFFB400D9).withOpacity(0.05),
+                                              ],
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF7F00FF).withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: const Icon(Icons.search, color: Color(0xFF7F00FF), size: 20),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              const Expanded(
+                                                child: Text(
+                                                  'Travel Insights & Suggestions',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF7F00FF),
+                                                  ),
+                                                ),
+                                              ),
+                                              if (_isLoadingInsights)
+                                                const SizedBox(
+                                                  width: 20,
+                                                  height: 20,
+                                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7F00FF)),
+                                                ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  }).toList(),
+                                        
+                                        // Place Suggestions
+                                        if (_destinationSuggestions.isNotEmpty) ...[
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 4,
+                                                  height: 20,
+                                                  decoration: BoxDecoration(
+                                                    gradient: const LinearGradient(
+                                                      colors: [Color(0xFF7F00FF), Color(0xFFB400D9)],
+                                                    ),
+                                                    borderRadius: BorderRadius.circular(2),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Text(
+                                                  'Destinations',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Color(0xFF7F00FF),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          ...(_destinationSuggestions.take(3).map((suggestion) {
+                                            return InkWell(
+                                              onTap: () {
+                                                setState(() {
+                                                  _destinationController.text = suggestion;
+                                                  _destinationSuggestions = [];
+                                                  _showInsights = false;
+                                                });
+                                                _estimateDistance();
+                                              },
+                                              child: Container(
+                                                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                                padding: const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black.withOpacity(0.03),
+                                                      blurRadius: 4,
+                                                      offset: const Offset(0, 2),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.all(8),
+                                                      decoration: BoxDecoration(
+                                                        gradient: LinearGradient(
+                                                          colors: [
+                                                            const Color(0xFF7F00FF).withOpacity(0.1),
+                                                            const Color(0xFFB400D9).withOpacity(0.1),
+                                                          ],
+                                                        ),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: const Icon(Icons.location_on, size: 20, color: Color(0xFF7F00FF)),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: Text(
+                                                        suggestion,
+                                                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                                      ),
+                                                    ),
+                                                    const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList()),
+                                          const SizedBox(height: 8),
+                                        ],
+                                        
+                                        // Travel Insights Grid
+                                        if (_destinationInsights.isNotEmpty) ...[
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 4,
+                                                  height: 20,
+                                                  decoration: BoxDecoration(
+                                                    gradient: const LinearGradient(
+                                                      colors: [Color(0xFF00B4DB), Color(0xFF0083B0)],
+                                                    ),
+                                                    borderRadius: BorderRadius.circular(2),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Text(
+                                                  'Quick Insights',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Color(0xFF00B4DB),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            child: GridView.builder(
+                                              shrinkWrap: true,
+                                              physics: const NeverScrollableScrollPhysics(),
+                                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount: 2,
+                                                childAspectRatio: 1.5,
+                                                crossAxisSpacing: 8,
+                                                mainAxisSpacing: 8,
+                                              ),
+                                              itemCount: _destinationInsights.length,
+                                              itemBuilder: (context, index) {
+                                                final insight = _destinationInsights[index];
+                                                return _buildInsightCard(insight);
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                        
+                                        const SizedBox(height: 8),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -1091,6 +2265,28 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildWeatherDetail(String emoji, String label, String value) {
+    return Column(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF00B4DB),
+          ),
+        ),
+      ],
     );
   }
 }
