@@ -1,14 +1,20 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'openweather_service.dart';
+import 'firebase_destinations_service.dart';
 
 class TrendingDestinationsService {
   final http.Client _client;
   final OpenWeatherService _weatherService;
+  final FirebaseDestinationsService _firebaseDestinations;
 
-  TrendingDestinationsService([http.Client? client, OpenWeatherService? weatherService])
-      : _client = client ?? http.Client(),
-        _weatherService = weatherService ?? OpenWeatherService();
+  TrendingDestinationsService([
+    http.Client? client,
+    OpenWeatherService? weatherService,
+    FirebaseDestinationsService? firebaseDestinations,
+  ])  : _client = client ?? http.Client(),
+        _weatherService = weatherService ?? OpenWeatherService(),
+        _firebaseDestinations = firebaseDestinations ?? FirebaseDestinationsService();
 
   /// Get trending destinations with insights based on occasion type (with real-time weather)
   Future<List<Map<String, dynamic>>> getTrendingDestinations({
@@ -76,26 +82,48 @@ class TrendingDestinationsService {
     ];
   }
 
-  /// Get trending destinations by occasion type
+  /// Get trending destinations by occasion type (from Firebase)
   Future<List<Map<String, dynamic>>> _getTrendingByOccasion(
     String occasionType,
     String budgetCategory,
     String durationCategory,
   ) async {
-    // Curated destinations based on occasion type
-    final destinations = _getDestinationsByOccasion(occasionType);
+    print('🔥 Fetching destinations from Firebase for: $occasionType');
     
-    // Filter by budget and duration
-    final filtered = destinations.where((dest) {
-      final matchesBudget = dest['budgetCategory'] == budgetCategory || 
-                           dest['budgetCategory'] == 'all';
-      final matchesDuration = dest['durationCategory'] == durationCategory || 
-                             dest['durationCategory'] == 'all';
-      return matchesBudget && matchesDuration;
+    // Get destinations from Firebase Remote Config
+    final destinations = await _firebaseDestinations.getDestinations(occasionType);
+    
+    // Score destinations based on budget and duration match
+    final scored = destinations.map((dest) {
+      int score = 0;
+      
+      // Budget matching (more flexible)
+      if (dest['budgetCategory'] == budgetCategory || dest['budgetCategory'] == 'all') {
+        score += 10; // Exact match
+      } else if (budgetCategory == 'mid-range') {
+        // Mid-range can consider budget and luxury options
+        score += 5;
+      } else if (budgetCategory == 'budget' && dest['budgetCategory'] == 'mid-range') {
+        score += 3; // Budget users can see mid-range as aspirational
+      } else if (budgetCategory == 'luxury' && dest['budgetCategory'] == 'mid-range') {
+        score += 3; // Luxury users can see mid-range as alternatives
+      }
+      
+      // Duration matching (flexible)
+      if (dest['durationCategory'] == durationCategory || dest['durationCategory'] == 'all') {
+        score += 5; // Exact match
+      } else {
+        score += 2; // Still show, just lower priority
+      }
+      
+      return {...dest, '_score': score};
     }).toList();
-
-    // Return top 5
-    return filtered.take(5).toList();
+    
+    // Sort by score (descending) and return top 5
+    scored.sort((a, b) => (b['_score'] as int).compareTo(a['_score'] as int));
+    
+    print('✅ Returning ${scored.take(5).length} destinations');
+    return scored.take(5).toList();
   }
 
   List<Map<String, dynamic>> _getDestinationsByOccasion(String occasionType) {
@@ -888,7 +916,6 @@ class TrendingDestinationsService {
             'icon': weatherData.icon,
             'humidity': weatherData.humidity,
             'windSpeed': weatherData.windSpeed,
-            'feelsLike': weatherData.feelsLike,
           };
           print('✅ $destName: ${weatherData.temperature.toStringAsFixed(1)}°C - ${weatherData.description}');
         } else {

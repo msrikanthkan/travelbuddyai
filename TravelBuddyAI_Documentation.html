@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TravelBuddyAI - Complete Application Documentation</title>
+    <style>
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            line-height: 1.6;
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 1in;
+            color: #333;
+        }
+        h1 {
+            color: #7F00FF;
+            border-bottom: 3px solid #7F00FF;
+            padding-bottom: 10px;
+            font-size: 28pt;
+            margin-top: 0;
+        }
+        h2 {
+            color: #00B4DB;
+            border-bottom: 2px solid #00B4DB;
+            padding-bottom: 8px;
+            font-size: 20pt;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #FF7F50;
+            font-size: 16pt;
+            margin-top: 20px;
+        }
+        h4 {
+            color: #00C853;
+            font-size: 14pt;
+            margin-top: 15px;
+        }
+        .header-info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-left: 4px solid #7F00FF;
+            margin-bottom: 30px;
+        }
+        .feature-box {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .code-block {
+            background: #f4f4f4;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 10pt;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #7F00FF;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        .tech-stack {
+            display: inline-block;
+            background: #e3f2fd;
+            padding: 5px 10px;
+            margin: 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+        .highlight {
+            background-color: #ffeb3b;
+            padding: 2px 5px;
+        }
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🌍 TravelBuddyAI</h1>
+<div class="header-info">
+    <p><strong>Application Name:</strong> TravelBuddyAI</p>
+    <p><strong>Version:</strong> 1.0.0+1</p>
+    <p><strong>Platform:</strong> Flutter (Cross-platform: Android, iOS, Web)</p>
+    <p><strong>Document Date:</strong> June 9, 2026</p>
+    <p><strong>Description:</strong> An intelligent travel planning and budgeting application that helps users plan trips, calculate budgets, find attractions, and make informed travel decisions.</p>
+</div>
+
+<h2>📋 Table of Contents</h2>
+<ol>
+    <li>Executive Summary</li>
+    <li>Application Overview</li>
+    <li>Core Features</li>
+    <li>Technical Architecture</li>
+    <li>Data Models</li>
+    <li>Services & APIs</li>
+    <li>User Interface</li>
+    <li>Firebase Integration</li>
+    <li>Setup & Installation</li>
+    <li>Future Enhancements</li>
+</ol>
+
+<div class="page-break"></div>
+
+<h2>1. Executive Summary</h2>
+<p>TravelBuddyAI is a comprehensive travel planning application built with Flutter that empowers users to plan their trips intelligently. The application provides real-time budget calculations, train schedule information, attraction recommendations, and various travel assistance features.</p>
+
+<div class="feature-box">
+    <h4>Key Highlights:</h4>
+    <ul>
+        <li>✅ Multi-modal travel planning (Road, Train, Flight)</li>
+        <li>✅ Dynamic pricing based on location and travel class</li>
+        <li>✅ Real-time train schedule integration via Firebase Remote Config</li>
+        <li>✅ Attraction discovery and recommendations</li>
+        <li>✅ Budget breakdown and cost estimation</li>
+        <li>✅ Family-friendly road trip planning</li>
+        <li>✅ Bargain assistance for local shopping</li>
+    </ul>
+</div>
+
+<h2>2. Application Overview</h2>
+
+<h3>2.1 Purpose</h3>
+<p>TravelBuddyAI aims to simplify travel planning by providing users with accurate budget estimates, travel options, and destination insights. It helps families and individuals make informed decisions about their trips by considering multiple factors including transportation costs, accommodation, food, and attractions.</p>
+
+<h3>2.2 Target Audience</h3>
+<ul>
+    <li><strong>Families:</strong> Planning road trips with children</li>
+    <li><strong>Budget Travelers:</strong> Looking for cost-effective travel options</li>
+    <li><strong>First-time Travelers:</strong> Need guidance on pricing and planning</li>
+    <li><strong>Domestic Tourists:</strong> Exploring destinations within India</li>
+</ul>
+
+<h3>2.3 Technology Stack</h3>
+<div>
+    <span class="tech-stack">Flutter 3.11.0</span>
+    <span class="tech-stack">Dart</span>
+    <span class="tech-stack">Firebase Core</span>
+    <span class="tech-stack">Firebase Remote Config</span>
+    <span class="tech-stack">HTTP Client</span>
+    <span class="tech-stack">Cached Network Image</span>
+    <span class="tech-stack">Shared Preferences</span>
+</div>
+
+<div class="page-break"></div>
+
+<h2>3. Core Features</h2>
+
+<h3>3.1 Smart Travel Budget Planner</h3>
+<div class="feature-box">
+    <p><strong>Description:</strong> Comprehensive budget calculation tool that estimates total trip costs based on multiple parameters.</p>
+    
+    <h4>Features:</h4>
+    <ul>
+        <li>Multi-modal travel support (Road, Train, Flight)</li>
+        <li>Dynamic pricing based on origin and destination</li>
+        <li>Hotel category selection (Budget, Standard, Premium, Luxury)</li>
+        <li>Family size consideration (Adults + Kids)</li>
+        <li>Attraction budget estimation</li>
+        <li>Date-based planning with calendar integration</li>
+    </ul>
+    
+    <h4>Cost Components:</h4>
+    <table>
+        <tr>
+            <th>Component</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td>Transportation</td>
+            <td>Fuel costs (road), Train tickets, or Flight tickets</td>
+        </tr>
+        <tr>
+            <td>Accommodation</td>
+            <td>Hotel costs based on category and nights</td>
+        </tr>
+        <tr>
+            <td>Food</td>
+            <td>Per person per day food expenses</td>
+        </tr>
+        <tr>
+            <td>Toll Charges</td>
+            <td>Highway tolls for road trips</td>
+        </tr>
+        <tr>
+            <td>Attractions</td>
+            <td>Entry fees and activity costs</td>
+        </tr>
+        <tr>
+            <td>Miscellaneous</td>
+            <td>Additional expenses</td>
+        </tr>
+    </table>
+</div>
+
+<h3>3.2 Travel Bargain Assistant</h3>
+<div class="feature-box">
+    <p>Helps users understand local pricing and negotiate better deals for taxis, auto-rickshaws, and local shopping.</p>
+    <ul>
+        <li>Local price references</li>
+        <li>Taxi/auto fare estimates</li>
+        <li>Negotiation phrases and tips</li>
+    </ul>
+</div>
+
+<h3>3.3 Family Road Trip Planner</h3>
+<div class="feature-box">
+    <p>Specialized planning for families traveling by road with children.</p>
+    <ul>
+        <li>Clean restroom locations</li>
+        <li>Kids play areas along the route</li>
+        <li>Family-friendly restaurants</li>
+        <li>Petrol pump locations</li>
+    </ul>
+</div>
+
+<h3>3.4 Additional Features</h3>
+<table>
+    <tr>
+        <th>Feature</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>Travel Scam Alert</td>
+        <td>User-reported scams with AI risk scoring</td>
+    </tr>
+    <tr>
+        <td>AI Itinerary Generator</td>
+        <td>Automated route and schedule planning</td>
+    </tr>
+    <tr>
+        <td>Safe Travel Companion</td>
+        <td>Safe routes, SOS button, verified transport</td>
+    </tr>
+    <tr>
+        <td>Offline Translator</td>
+        <td>Multi-language support (Telugu, Hindi, Tamil, Kannada)</td>
+    </tr>
+    <tr>
+        <td>Local Food Finder</td>
+        <td>Discover local specialties and hidden gems</td>
+    </tr>
+    <tr>
+        <td>Road Trip Co-Pilot</td>
+        <td>Fuel prediction, toll estimation, night stay suggestions</td>
+    </tr>
+    <tr>
+        <td>Travel Health Assistant</td>
+        <td>Nearby hospitals, pharmacies, emergency numbers</td>
+    </tr>
+</table>
+
+<div class="page-break"></div>
+
+<h2>4. Technical Architecture</h2>
+
+<h3>4.1 Application Structure</h3>
+<div class="code-block">
+travelbuddyai/
+├── lib/
+│   ├── main.dart                    # Application entry point
+│   ├── firebase_options.dart        # Firebase configuration
+│   ├── models/                      # Data models
+│   │   ├── budget_model.dart
+│   │   ├── train_model.dart
+│   │   ├── attraction_model.dart
+│   │   ├── hotel_model.dart
+│   │   ├── itinerary_model.dart
+│   │   └── trip_model.dart
+│   ├── screens/                     # UI screens
+│   │   ├── splash_screen.dart
+│   │   ├── home_screen.dart
+│   │   ├── budget_planner_form.dart
+│   │   ├── budget_summary_screen.dart
+│   │   ├── bargain_assistant_screen.dart
+│   │   └── family_road_trip_planner_screen.dart
+│   └── services/                    # Business logic
+│       ├── budget_service.dart
+│       ├── pricing_service.dart
+│       ├── train_data_service.dart
+│       ├── attractions_service.dart
+│       ├── maps_service.dart
+│       ├── places_service.dart
+│       └── trending_destinations_service.dart
+├── android/                         # Android configuration
+├── ios/                            # iOS configuration
+├── functions/                      # Firebase Cloud Functions
+└── pubspec.yaml                    # Dependencies
+</div>
+
+<h3>4.2 Design Patterns</h3>
+<ul>
+    <li><strong>Singleton Pattern:</strong> Used in TrainDataService for single instance management</li>
+    <li><strong>Service Layer Pattern:</strong> Separation of business logic from UI</li>
+    <li><strong>Repository Pattern:</strong> Data access abstraction</li>
+    <li><strong>Factory Pattern:</strong> Model creation from JSON</li>
+</ul>
+
+<h3>4.3 State Management</h3>
+<p>The application uses StatefulWidget for local state management with the following approach:</p>
+<ul>
+    <li>Form state management using TextEditingController</li>
+    <li>Async operations with FutureBuilder</li>
+    <li>Local caching with SharedPreferences</li>
+    <li>Remote configuration with Firebase Remote Config</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>5. Data Models</h2>
+
+<h3>5.1 Budget Model</h3>
+<div class="code-block">
+class Budget {
+  final String tripId;
+  final String travelType;        // 'road', 'train', 'flight'
+  final String travelClass;       // Train/Flight class
+  final double fuelCost;
+  final double ticketCost;
+  final double hotelCost;
+  final double foodCost;
+  final double tollCharges;
+  final double attractionCost;
+  final double miscellaneousCost;
+  final String budgetCategory;
+  
+  double get totalCost => 
+    fuelCost + ticketCost + hotelCost + 
+    foodCost + tollCharges + attractionCost + 
+    miscellaneousCost;
+}
+</div>
+
+<h3>5.2 Train Model</h3>
+<div class="code-block">
+class Train {
+  final String trainNumber;
+  final String trainName;
+  final String origin;
+  final String originName;
+  final String destination;
+  final String destinationName;
+  final String departureTime;
+  final String arrivalTime;
+  final double durationHours;
+  final List<String> runsOn;
+  final List<String> classesAvailable;
+}
+</div>
+
+<h3>5.3 Other Models</h3>
+<ul>
+    <li><strong>Attraction Model:</strong> Tourist attractions with ratings and pricing</li>
+    <li><strong>Hotel Model:</strong> Accommodation options with amenities</li>
+    <li><strong>Itinerary Model:</strong> Day-wise travel plans</li>
+    <li><strong>Trip Model:</strong> Complete trip information</li>
+    <li><strong>Food Place Model:</strong> Restaurant and food recommendations</li>
+    <li><strong>Rest Stop Model:</strong> Highway rest areas</li>
+    <li><strong>Taxi Model:</strong> Local transportation options</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>6. Services & APIs</h2>
+
+<h3>6.1 Budget Service</h3>
+<div class="feature-box">
+    <p><strong>Purpose:</strong> Calculate comprehensive trip budgets with dynamic pricing</p>
+    
+    <h4>Key Methods:</h4>
+    <ul>
+        <li><code>calculateFuelCost()</code> - Location-based fuel pricing</li>
+        <li><code>calculateTollCharges()</code> - Route-specific toll estimation</li>
+        <li><code>calculateFoodCost()</code> - Destination-based food pricing</li>
+        <li><code>estimateHotelCost()</code> - Category and location-based hotel pricing</li>
+        <li><code>calculateTotalBudget()</code> - Complete budget calculation</li>
+    </ul>
+    
+    <h4>Features:</h4>
+    <ul>
+        <li>Parallel API calls for performance</li>
+        <li>Fallback pricing for offline scenarios</li>
+        <li>Round-trip cost calculations</li>
+        <li>Family size considerations</li>
+    </ul>
+</div>
+
+<h3>6.2 Pricing Service</h3>
+<div class="feature-box">
+    <p><strong>Purpose:</strong> Provide dynamic pricing data for various travel components</p>
+    
+    <h4>Pricing Components:</h4>
+    <table>
+        <tr>
+            <th>Service</th>
+            <th>Pricing Logic</th>
+        </tr>
+        <tr>
+            <td>Train Tickets</td>
+            <td>Distance × Class Rate + Reservation Charges</td>
+        </tr>
+        <tr>
+            <td>Flight Tickets</td>
+            <td>Base Fare + Distance × Rate + Taxes (20%)</td>
+        </tr>
+        <tr>
+            <td>Fuel</td>
+            <td>Location-specific per liter rates</td>
+        </tr>
+        <tr>
+            <td>Hotels</td>
+            <td>Destination-based category pricing</td>
+        </tr>
+        <tr>
+            <td>Food</td>
+            <td>Per person per day destination rates</td>
+        </tr>
+    </table>
+    
+    <h4>Train Class Rates (per km):</h4>
+    <ul>
+        <li>Sleeper: ₹0.50/km</li>
+        <li>AC 3-Tier: ₹1.20/km</li>
+        <li>AC 2-Tier: ₹1.80/km</li>
+        <li>AC 1st Class: ₹3.00/km</li>
+    </ul>
+</div>
+
+<h3>6.3 Train Data Service</h3>
+<div class="feature-box">
+    <p><strong>Purpose:</strong> Manage train schedules via Firebase Remote Config</p>
+    
+    <h4>Features:</h4>
+    <ul>
+        <li>Firebase Remote Config integration</li>
+        <li>Local caching with SharedPreferences</li>
+        <li>Automatic updates every 12 hours</li>
+        <li>Fallback to default data</li>
+        <li>Search by origin and destination</li>
+        <li>Filter by travel class availability</li>
+    </ul>
+    
+    <h4>Data Update Flow:</h4>
+    <ol>
+        <li>Fetch from Firebase Remote Config</li>
+        <li>Parse JSON train data</li>
+        <li>Cache locally for offline access</li>
+        <li>Serve from cache if network unavailable</li>
+    </ol>
+</div>
+
+<h3>6.4 Additional Services</h3>
+<ul>
+    <li><strong>Attractions Service:</strong> Discover tourist attractions and activities</li>
+    <li><strong>Maps Service:</strong> Distance calculation and route planning</li>
+    <li><strong>Places Service:</strong> Location search and autocomplete</li>
+    <li><strong>Trending Destinations Service:</strong> Popular destination recommendations</li>
+    <li><strong>Destination Insights Service:</strong> Weather, culture, and travel tips</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>7. User Interface</h2>
+
+<h3>7.1 Screen Flow</h3>
+<div class="code-block">
+Splash Screen
+    ↓
+Home Screen (Feature Grid)
+    ↓
+    ├── Budget Planner Form
+    │       ↓
+    │   Budget Summary Screen
+    │
+    ├── Bargain Assistant Screen
+    │
+    ├── Family Road Trip Planner Screen
+    │
+    └── Feature Detail Screens
+</div>
+
+<h3>7.2 Home Screen</h3>
+<div class="feature-box">
+    <p>Grid layout displaying 10 travel features with color-coded cards:</p>
+    <ul>
+        <li>Purple (#7F00FF) - Budget Planner</li>
+        <li>Blue (#00B4DB) - Bargain Assistant</li>
+        <li>Coral (#FF7F50) - Family Road Trip</li>
+        <li>Green (#00C853) - Scam Alert</li>
+        <li>Magenta (#D500F9) - AI Itinerary</li>
+    </ul>
+</div>
+
+<h3>7.3 Budget Planner Form</h3>
+<div class="feature-box">
+    <h4>Input Fields:</h4>
+    <ul>
+        <li>Origin City (with autocomplete)</li>
+        <li>Destination City (with autocomplete)</li>
+        <li>Travel Type (Road/Train/Flight)</li>
+        <li>Travel Class (based on type)</li>
+        <li>Number of Days</li>
+        <li>Adults Count</li>
+        <li>Kids Count</li>
+        <li>Hotel Category</li>
+        <li>Start Date & Return Date</li>
+        <li>Attraction Budget (optional)</li>
+    </ul>
+    
+    <h4>Dynamic Features:</h4>
+    <ul>
+        <li>Auto-calculate distance between cities</li>
+        <li>Show available trains for selected route</li>
+        <li>Display trending destinations</li>
+        <li>Suggest attractions at destination</li>
+        <li>Real-time budget estimation</li>
+    </ul>
+</div>
+
+<h3>7.4 Budget Summary Screen</h3>
+<div class="feature-box">
+    <p>Displays comprehensive budget breakdown with:</p>
+    <ul>
+        <li>Total cost prominently displayed</li>
+        <li>Itemized cost breakdown</li>
+        <li>Visual charts (if implemented)</li>
+        <li>Trip details summary</li>
+        <li>Save/Share options</li>
+    </ul>
+</div>
+
+<div class="page-break"></div>
+
+<h2>8. Firebase Integration</h2>
+
+<h3>8.1 Firebase Services Used</h3>
+<table>
+    <tr>
+        <th>Service</th>
+        <th>Purpose</th>
+    </tr>
+    <tr>
+        <td>Firebase Core</td>
+        <td>Base Firebase SDK initialization</td>
+    </tr>
+    <tr>
+        <td>Firebase Remote Config</td>
+        <td>Dynamic train schedule updates</td>
+    </tr>
+</table>
+
+<h3>8.2 Remote Config Parameters</h3>
+<div class="feature-box">
+    <h4>train_schedules_json</h4>
+    <p>JSON structure containing train data:</p>
+    <div class="code-block">
+{
+  "version": "2024.06.1",
+  "last_updated": "2024-06-05",
+  "trains": [
+    {
+      "train_number": "18464",
+      "train_name": "Visakha Express",
+      "origin": "VSKP",
+      "destination": "TPTY",
+      "departure_time": "20:30",
+      "arrival_time": "06:45",
+      "duration_hours": 10.25,
+      "runs_on": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      "classes_available": ["SL", "3A", "2A", "1A"]
+    }
+  ]
+}
+    </div>
+</div>
+
+<h3>8.3 Configuration Settings</h3>
+<ul>
+    <li><strong>Fetch Timeout:</strong> 1 minute</li>
+    <li><strong>Minimum Fetch Interval:</strong> 12 hours</li>
+    <li><strong>Cache Strategy:</strong> Local SharedPreferences backup</li>
+</ul>
+
+<div class="note">
+    <strong>Note:</strong> Train data can be updated in Firebase Console without requiring app updates, enabling fortnightly schedule updates from data.gov.in.
+</div>
+
+<div class="page-break"></div>
+
+<h2>9. Setup & Installation</h2>
+
+<h3>9.1 Prerequisites</h3>
+<ul>
+    <li>Flutter SDK 3.11.0 or higher</li>
+    <li>Dart SDK</li>
+    <li>Android Studio / VS Code</li>
+    <li>Firebase account</li>
+    <li>Android/iOS development environment</li>
+</ul>
+
+<h3>9.2 Dependencies</h3>
+<div class="code-block">
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  cached_network_image: ^3.3.0
+  firebase_core: ^2.24.2
+  firebase_remote_config: ^4.3.8
+  shared_preferences: ^2.2.2
+</div>
+
+<h3>9.3 Installation Steps</h3>
+<ol>
+    <li><strong>Clone Repository:</strong>
+        <div class="code-block">git clone [repository-url]
+cd travelbuddyai</div>
+    </li>
+    
+    <li><strong>Install Dependencies:</strong>
+        <div class="code-block">flutter pub get</div>
+    </li>
+    
+    <li><strong>Firebase Setup:</strong>
+        <ul>
+            <li>Create Firebase project</li>
+            <li>Add Android app with package name: com.example.travelbuddyai</li>
+            <li>Download google-services.json to android/app/</li>
+            <li>Update firebase_options.dart with real API keys</li>
+        </ul>
+    </li>
+    
+    <li><strong>Configure Remote Config:</strong>
+        <ul>
+            <li>Go to Firebase Console → Remote Config</li>
+            <li>Add parameter: train_schedules_json</li>
+            <li>Paste train data JSON</li>
+            <li>Publish changes</li>
+        </ul>
+    </li>
+    
+    <li><strong>Run Application:</strong>
+        <div class="code-block">flutter clean
+flutter run</div>
+    </li>
+</ol>
+
+<h3>9.4 Build for Production</h3>
+<div class="code-block">
+# Android APK
+flutter build apk --release
+
+# Android App Bundle
+flutter build appbundle --release
+
+# iOS
+flutter build ios --release
+</div>
+
+<div class="page-break"></div>
+
+<h2>10. Future Enhancements</h2>
+
+<h3>10.1 Planned Features</h3>
+<table>
+    <tr>
+        <th>Feature</th>
+        <th>Priority</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>Real-time Train API</td>
+        <td>High</td>
+        <td>Integration with Indian Railways API for live data</td>
+    </tr>
+    <tr>
+        <td>Weather Integration</td>
+        <td>High</td>
+        <td>OpenWeather API for destination weather forecasts</td>
+    </tr>
+    <tr>
+        <td>Google Maps Integration</td>
+        <td>High</td>
+        <td>Visual route planning and navigation</td>
+    </tr>
+    <tr>
+        <td>User Authentication</td>
+        <td>Medium</td>
+        <td>Save trips and preferences</td>
+    </tr>
+    <tr>
+        <td>Trip History</td>
+        <td>Medium</td>
+        <td>Track past trips and expenses</td>
+    </tr>
+    <tr>
+        <td>Social Sharing</td>
+        <td>Medium</td>
+        <td>Share itineraries with friends/family</td>
+    </tr>
+    <tr>
+        <td>Offline Mode</td>
+        <td>Low</td>
+        <td>Complete offline functionality</td>
+    </tr>
+    <tr>
+        <td>Multi-language Support</td>
+        <td>Low</td>
+        <td>Regional language interfaces</td>
+    </tr>
+</table>
+
+<h3>10.2 API Integrations Roadmap</h3>
+<ul>
+    <li><strong>Google Places API:</strong> Enhanced location search and autocomplete</li>
+    <li><strong>Google Directions API:</strong> Accurate route and distance calculation</li>
+    <li><strong>OpenWeather API:</strong> Weather forecasts for destinations</li>
+    <li><strong>Indian Railways API:</strong> Real-time train schedules and availability</li>
+    <li><strong>Flight APIs:</strong> Live flight pricing and availability</li>
+    <li><strong>Hotel Booking APIs:</strong> Real hotel prices and availability</li>
+</ul>
+
+<h3>10.3 Technical Improvements</h3>
+<ul>
+    <li>Implement state management (Provider/Riverpod/Bloc)</li>
+    <li>Add comprehensive unit and widget tests</li>
+    <li>Implement CI/CD pipeline</li>
+    <li>Add analytics and crash reporting</li>
+    <li>Optimize app performance and bundle size</li>
+    <li>Implement proper error handling and logging</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>11. Appendix</h2>
+
+<h3>11.1 Known Routes and Distances</h3>
+<table>
+    <tr>
+        <th>Origin</th>
+        <th>Destination</th>
+        <th>Distance (km)</th>
+    </tr>
+    <tr>
+        <td>Visakhapatnam</td>
+        <td>Hyderabad</td>
+        <td>625</td>
+    </tr>
+    <tr>
+        <td>Visakhapatnam</td>
+        <td>Tirupati</td>
+        <td>445</td>
+    </tr>
+    <tr>
+        <td>Hyderabad</td>
+        <td>Tirupati</td>
+        <td>555</td>
+    </tr>
+</table>
+
+<h3>11.2 Sample Train Data</h3>
+<table>
+    <tr>
+        <th>Train Number</th>
+        <th>Name</th>
+        <th>Route</th>
+        <th>Duration</th>
+    </tr>
+    <tr>
+        <td>18464</td>
+        <td>Visakha Express</td>
+        <td>VSKP → TPTY</td>
+        <td>10h 15m</td>
+    </tr>
+    <tr>
+        <td>12804</td>
+        <td>Simhapuri Express</td>
+        <td>VSKP → TPTY</td>
+        <td>9h 15m</td>
+    </tr>
+    <tr>
+        <td>12759</td>
+        <td>Charminar Express</td>
+        <td>HYB → VSKP</td>
+        <td>11h 35m</td>
+    </tr>
+    <tr>
+        <td>12760</td>
+        <td>Charminar Express</td>
+        <td>VSKP → HYB</td>
+        <td>11h 45m</td>
+    </tr>
+</table>
+
+<h3>11.3 Hotel Categories and Pricing</h3>
+<table>
+    <tr>
+        <th>Category</th>
+        <th>Price Range (per night)</th>
+        <th>Amenities</th>
+    </tr>
+    <tr>
+        <td>Budget</td>
+        <td>₹800 - ₹1,500</td>
+        <td>Basic room, WiFi</td>
+    </tr>
+    <tr>
+        <td>Standard</td>
+        <td>₹1,500 - ₹3,000</td>
+        <td>AC, TV, Breakfast</td>
+    </tr>
+    <tr>
+        <td>Premium</td>
+        <td>₹3,000 - ₹6,000</td>
+        <td>Pool, Gym, Restaurant</td>
+    </tr>
+    <tr>
+        <td>Luxury</td>
+        <td>₹6,000+</td>
+        <td>Full service, Spa, Concierge</td>
+    </tr>
+</table>
+
+<h3>11.4 Contact & Support</h3>
+<div class="feature-box">
+    <p><strong>Project Repository:</strong> [GitHub URL]</p>
+    <p><strong>Documentation:</strong> See README.md and setup guides</p>
+    <p><strong>Issues:</strong> Report bugs via GitHub Issues</p>
+    <p><strong>License:</strong> [License Type]</p>
+</div>
+
+<div class="note">
+    <strong>Document Version:</strong> 1.0<br>
+    <strong>Last Updated:</strong> June 9, 2026<br>
+    <strong>Generated by:</strong> TravelBuddyAI Documentation System
+</div>
+
+<hr style="margin-top: 50px; border: 2px solid #7F00FF;">
+<p style="text-align: center; color: #7F00FF; font-weight: bold; font-size: 14pt;">
+    End of Document
+</p>
+
+</body>
+</html>

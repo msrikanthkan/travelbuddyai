@@ -46,7 +46,7 @@ static const String _amadeusTravelApiSecret = 'YOUR_SECRET_HERE';
 ### Option 2: Google Custom Search API
 
 **Best for**: Trending searches, popular destinations
-AIzaSyDuhhxxbSDXCeTTt0ez1AnaT1SnyZsDYm8
+
 #### Setup:
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Enable "Custom Search API"

@@ -359,8 +359,8 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                           children: [
                             _buildWeatherDetail(
                               '🌡️',
-                              'Feels Like',
-                              '${destination['weather']['feelsLike'].toStringAsFixed(0)}°C',
+                              'Temp Range',
+                              '${destination['weather']['tempMin'].toStringAsFixed(0)}-${destination['weather']['tempMax'].toStringAsFixed(0)}°C',
                             ),
                             _buildWeatherDetail(
                               '💧',
@@ -571,10 +571,12 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                 const SizedBox(height: 8),
                 Text(
                   insight.subtitle,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                    letterSpacing: 0.5,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -583,10 +585,19 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                 if (insight.value != null)
                   Text(
                     insight.value!,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: colors[0],
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      fontFamily: 'monospace',
+                      letterSpacing: 1.2,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          offset: Offset(1, 1),
+                          blurRadius: 2,
+                        ),
+                      ],
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -624,26 +635,27 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               colors: [Color(0xFF7F00FF), Color(0xFFB400D9)],
                             ),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             insight.icon ?? '📍',
-                            style: const TextStyle(fontSize: 24),
+                            style: const TextStyle(fontSize: 20),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,27 +663,30 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                               Text(
                                 insight.title,
                                 style: const TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 4),
                               Text(
                                 insight.subtitle,
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 12,
                                   color: Colors.grey[600],
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
                     if (insight.value != null) ...[
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
@@ -679,41 +694,43 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                               const Color(0xFFB400D9).withOpacity(0.05),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.info_outline, color: Color(0xFF7F00FF)),
-                            const SizedBox(width: 12),
+                            const Icon(Icons.info_outline, color: Color(0xFF7F00FF), size: 18),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 insight.value!,
                                 style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 12),
                     ],
-                    const Spacer(),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF7F00FF),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         onPressed: () => Navigator.pop(context),
                         child: const Text(
                           'Got it',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
@@ -794,7 +811,8 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
     setState(() {
       _isSearchingDestination = true;
       _destinationSearchError = null;
-      _showInsights = true;
+      _showInsights = false; // Don't show insights while typing
+      _destinationInsights = []; // Clear previous insights
     });
 
     try {
@@ -807,8 +825,7 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
         _destinationSuggestions = suggestions;
       });
       
-      // Fetch insights for the query
-      _fetchDestinationInsights(query);
+      // Don't fetch insights while typing - only after selection
     } catch (error) {
       if (!mounted) return;
       if (_lastDestinationQueryTime != now) return;
@@ -842,11 +859,14 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
       setState(() {
         _destinationInsights = insights;
         _isLoadingInsights = false;
+        // Show insights only if we have data
+        _showInsights = insights.isNotEmpty;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoadingInsights = false;
+        _showInsights = false;
       });
     }
   }
@@ -1524,8 +1544,8 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                               },
                               validator: (value) => value == null || value.isEmpty ? 'Enter destination' : null,
                             ),
-                            // Insane UI for Destination Insights
-                            if (_showInsights && (_destinationSuggestions.isNotEmpty || _destinationInsights.isNotEmpty)) ...[
+                            // Autocomplete suggestions and Destination Insights
+                            if (_destinationSuggestions.isNotEmpty || (_showInsights && _destinationInsights.isNotEmpty)) ...[
                               const SizedBox(height: 12),
                               Container(
                                 constraints: const BoxConstraints(maxHeight: 500),
@@ -1630,9 +1650,10 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                                                 setState(() {
                                                   _destinationController.text = suggestion;
                                                   _destinationSuggestions = [];
-                                                  _showInsights = false;
                                                 });
                                                 _estimateDistance();
+                                                // Fetch insights after destination is selected
+                                                _fetchDestinationInsights(suggestion);
                                               },
                                               child: Container(
                                                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
