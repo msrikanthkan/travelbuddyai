@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../services/ideas_service.dart';
-import 'bargain_assistant_screen.dart';
 import 'budget_planner_form.dart';
-import 'family_road_trip_planner_screen.dart';
 import 'feature_detail_screen.dart';
+import 'trip_planner_screen1.dart';
+import 'my_trips_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -19,20 +19,33 @@ class HomeScreen extends StatelessWidget {
 
   void _openFeatureDetail(BuildContext context, String id, String title, List<String> points) {
     if (id == '1') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const BudgetPlannerForm()),
-      );
-      return;
-    }
-    if (id == '2') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const BargainAssistantScreen()),
-      );
-      return;
-    }
-    if (id == '3') {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FamilyRoadTripPlannerScreen()),
+      // Show dialog to choose between old and new trip planner
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Choose Trip Planner'),
+          content: const Text('Select which trip planner you want to use:'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const TripPlannerScreen1()),
+                );
+              },
+              child: const Text('New Multi-Step Planner'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const BudgetPlannerForm()),
+                );
+              },
+              child: const Text('Classic Planner'),
+            ),
+          ],
+        ),
       );
       return;
     }
@@ -77,6 +90,18 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('TravelBuddyAI'),
         backgroundColor: const Color(0xFF7F00FF),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.luggage),
+            tooltip: 'My Trips',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MyTripsScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: GridView.builder(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),

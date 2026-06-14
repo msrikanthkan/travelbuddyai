@@ -65,8 +65,15 @@ class BudgetSummaryScreen extends StatelessWidget {
     final breakdown = budget.toJson();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget Summary'),
+        title: const Text(
+          'Budget Summary',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: const Color(0xFF7F00FF),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
