@@ -52,7 +52,7 @@
 Deploy with environment variable:
 
 ```bash
-firebase deploy --only functions:searchHotels --set-env-vars GOOGLE_PLACES_API_KEY=YOUR_API_KEY_HERE
+firebase deploy --only functions:searchHotels --set-env-vars GOOGLE_PLACES_API_KEY=AIzaSyDR0ASsQnR8XGH_5w0alG2jDVpHkkNZkWc
 ```
 
 Replace `YOUR_API_KEY_HERE` with your actual API key.
