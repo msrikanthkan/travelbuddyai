@@ -572,11 +572,18 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                 Text(
                   insight.subtitle,
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
+                    fontSize: 14,
+                    color: Color(0xFFFFFFFF),
                     fontWeight: FontWeight.w600,
                     fontFamily: 'monospace',
                     letterSpacing: 0.5,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black45,
+                        offset: Offset(0.5, 0.5),
+                        blurRadius: 1,
+                      ),
+                    ],
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -586,16 +593,21 @@ class _BudgetPlannerFormState extends State<BudgetPlannerForm> {
                   Text(
                     insight.value!,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
-                      color: Colors.white,
+                      color: Color(0xFFFFFFFF),
                       fontFamily: 'monospace',
                       letterSpacing: 1.2,
                       shadows: [
                         Shadow(
-                          color: Colors.black26,
+                          color: Colors.black54,
                           offset: Offset(1, 1),
-                          blurRadius: 2,
+                          blurRadius: 3,
+                        ),
+                        Shadow(
+                          color: Colors.white24,
+                          offset: Offset(-0.5, -0.5),
+                          blurRadius: 1,
                         ),
                       ],
                     ),
