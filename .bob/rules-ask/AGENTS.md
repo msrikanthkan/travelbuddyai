@@ -1,74 +1,32 @@
-# AGENTS.md - Ask Mode Rules
+# AGENTS.md — Ask Mode
 
-This file provides documentation context for agents answering questions about this Flutter/Dart repository.
+This file provides guidance to agents answering questions about this repository.
 
-## Project Structure Context
+## Non-obvious architecture
 
-### Three-Layer Destination System
-Non-obvious: Destinations are loaded from THREE separate sources:
-1. `assets/destinations.json` - Static fallback data
-2. Firebase Remote Config - Dynamic updates (12-hour fetch interval)
-3. Firestore - Real-time data
+### There are THREE destination services — only one is production
+- `DestinationsLoaderService` → `assets/destinations.json` (static bundled fallback)
+- `FirebaseDestinationsService` → Firebase Remote Config (production, 12h cache)
+- `FirestoreDestinationsService` → Firestore (exists but not wired into main feature flow)
+Questions about "why destinations aren't updating" almost always trace to Remote Config 12h cache.
 
-When answering questions about destinations, clarify which source is being used.
+### Maps/routing uses no paid API
+Geocoding = Nominatim (OpenStreetMap). Routing = OSRM public instance. No Google Maps API key is required or configured for routing. `google_maps_flutter` package is only used for the `LatLng` type — the actual Maps widget is not yet rendered.
 
-### Service Initialization Order Matters
-Firebase services have strict initialization order in main.dart:
-1. Firebase.initializeApp()
-2. TrainDataService().initialize()
-3. FirebaseDestinationsService().initialize()
+### Toll plaza data is bundled, not live
+`assets/toll_plazas.json` contains 73 hardcoded NHAI plazas. Coverage is major national highways only — state highways and new expressways are missing. Matching is geographic (Haversine 35km radius against the OSRM polyline).
 
-This is critical for understanding startup behavior.
+### BudgetService always calculates round-trip
+All cost estimates (fuel, tolls) shown in the app are round-trip even for one-way journeys. This is intentional and hardcoded — `distanceKm × 2` in `budget_service.dart:24`.
 
-## Hidden Implementation Details
+### Home screen navigation is id-string dispatch, not named routes
+There is no Flutter Navigator route table. Features are identified by string ids (`'1'`, `'9'` etc.) in `lib/services/ideas_service.dart`. New feature screens require an explicit `if` branch in `HomeScreen._openFeatureDetail()`.
 
-### Budget Calculations Always Round-Trip
-All distance-based calculations multiply by 2 (budget_service.dart:24, 40):
-- Fuel costs
-- Toll charges
-- Train/flight distances
+### SavedTripsService is static methods only
+Unlike all other services, `SavedTripsService` uses static methods (no singleton, no instance). Max 50 saved trips enforced at write time.
 
-This is hardcoded, not configurable per trip type.
+### PricingService is not a singleton
+`BudgetService` accepts an optional `PricingService` via constructor injection. `PricingService` has no singleton — it is instantiated per `BudgetService` instance.
 
-### City Tier System for Flight Pricing
-PricingService has undocumented city tier system (pricing_service.dart:70):
-- Tier 1: Metro cities (Mumbai, Delhi, Bangalore, etc.)
-- Tier 2: Major cities
-- Tier 3: Smaller cities
-
-Affects flight pricing calculations but not exposed in public API.
-
-### JSON to Dart Naming Convention
-All models convert snake_case JSON to camelCase Dart:
-- JSON: `estimated_cost`, `budget_range`, `occasion_types`
-- Dart: `estimatedCost`, `budgetRange`, `occasionTypes`
-
-Important when discussing data models or API responses.
-
-## Documentation Files
-
-### Primary Documentation
-- `TravelBuddyAI_Documentation.html` - 847 lines, comprehensive technical docs
-- `FIREBASE_COMPLETE_SETUP.md` - Complete Firebase setup guide
-- `update_documentation.ps1` - Helper script to check what needs updating
-
-### Setup Guides
-Multiple setup guides exist for different services:
-- Firebase, Firestore, OpenWeather, Google Places, Google Search APIs
-- Each has specific configuration requirements
-
-## Firebase Remote Config Caching
-
-### 12-Hour Fetch Interval
-Remote Config has minimum 12-hour fetch interval (train_data_service.dart:25).
-Services cache data in SharedPreferences with keys:
-- `cached_train_data`, `train_data_version`
-- `cached_destinations_*`, `destinations_version_*`
-
-Important for understanding data freshness and offline behavior.
-
-## Cloud Functions
-
-### Node.js 22 Runtime
-Firebase Cloud Functions use Node.js 22 (firebase.json).
-Functions directory has separate package.json and dependencies.
+### Road Trip Co-Pilot screen flow
+`RoadTripCopilotScreen` → `RoadTripService.planRoute()` → `MapsService.getRouteData()` (OSRM) → `RouteDetailsScreen` → `TollService.getTollPlazasOnRoute()` (loads at startup in main.dart).

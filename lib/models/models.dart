@@ -8,3 +8,7 @@ export 'itinerary_model.dart';
 export 'food_place_model.dart';
 export 'rest_stop_model.dart';
 export 'translation_model.dart';
+export 'route_model.dart';
+export 'vehicle_profile_model.dart';
+export 'toll_plaza_model.dart';
+export 'fuel_station_model.dart';

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'services/train_data_service.dart';
 import 'services/firebase_destinations_service.dart';
+import 'services/toll_service.dart';
+import 'services/train_data_service.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
@@ -19,6 +20,9 @@ void main() async {
     
     // Initialize Firebase Destinations Service
     await FirebaseDestinationsService().initialize();
+    
+    // Initialize Toll Service (loads bundled toll_plazas.json asset)
+    await TollService().initialize();
   } catch (e) {
     print('Error initializing Firebase: $e');
     // App will continue with fallback data

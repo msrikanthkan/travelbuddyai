@@ -1,41 +1,62 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show cos, sqrt, asin;
 
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+
+/// Holds the full route result from OSRM — distance, duration, and polyline.
+class RouteData {
+  final double distanceKm;
+  final Duration duration;
+  final List<LatLng> polylinePoints;
+
+  const RouteData({
+    required this.distanceKm,
+    required this.duration,
+    required this.polylinePoints,
+  });
+}
 
 /// MapsService using OpenStreetMap Nominatim for geocoding and OSRM for routing
 /// Both are free and open source, no API key required
 class MapsService {
   // Nominatim for geocoding (converting place names to coordinates)
   static const _geocodeUrl = 'https://nominatim.openstreetmap.org/search';
-  
+
   // OSRM for routing and distance calculation
   static const _routeUrl = 'https://router.project-osrm.org/route/v1/driving';
 
-  Future<double?> getDistanceKm(String origin, String destination) async {
+  /// Returns distance, duration, and the actual road polyline for toll matching.
+  /// Falls back to distance-only (no polyline) if geometry fetch fails.
+  Future<RouteData?> getRouteData(String origin, String destination) async {
     try {
-      // Step 1: Geocode origin and destination to get coordinates
       final originCoords = await _geocodePlace(origin);
       if (originCoords == null) return null;
 
       final destCoords = await _geocodePlace(destination);
       if (destCoords == null) return null;
 
-      // Step 2: Get route distance using OSRM
-      final distance = await _getRouteDistance(originCoords, destCoords);
-      return distance;
+      return await _fetchRouteWithGeometry(originCoords, destCoords);
     } catch (e) {
-      // Fallback to straight-line distance if routing fails
+      // Fallback: straight-line distance, no polyline
       try {
         final originCoords = await _geocodePlace(origin);
         final destCoords = await _geocodePlace(destination);
         if (originCoords != null && destCoords != null) {
-          return _calculateHaversineDistance(
+          final distKm = _calculateHaversineDistance(
             originCoords['lat']!,
             originCoords['lon']!,
             destCoords['lat']!,
             destCoords['lon']!,
+          );
+          // Straight-line: use origin+destination as minimal polyline
+          return RouteData(
+            distanceKm: distKm,
+            duration: Duration(minutes: (distKm / 60 * 60).round()),
+            polylinePoints: [
+              LatLng(originCoords['lat']!, originCoords['lon']!),
+              LatLng(destCoords['lat']!, destCoords['lon']!),
+            ],
           );
         }
       } catch (_) {}
@@ -43,12 +64,18 @@ class MapsService {
     }
   }
 
+  /// Legacy method kept for backward compatibility.
+  Future<double?> getDistanceKm(String origin, String destination) async {
+    final data = await getRouteData(origin, destination);
+    return data?.distanceKm;
+  }
+
   /// Geocode a place name to coordinates using Nominatim
   Future<Map<String, double>?> _geocodePlace(String place) async {
     final url = Uri.parse(
       '$_geocodeUrl?q=${Uri.encodeQueryComponent(place)}'
       '&format=json'
-      '&limit=1'
+      '&limit=1',
     );
 
     final response = await http.get(
@@ -69,37 +96,68 @@ class MapsService {
     return {'lat': lat, 'lon': lon};
   }
 
-  /// Get driving route distance using OSRM
-  Future<double?> _getRouteDistance(
+  /// Fetch route from OSRM with full GeoJSON geometry for polyline points.
+  Future<RouteData?> _fetchRouteWithGeometry(
     Map<String, double> origin,
     Map<String, double> destination,
   ) async {
     final url = Uri.parse(
-      '$_routeUrl/${origin['lon']},${origin['lat']};${destination['lon']},${destination['lat']}'
-      '?overview=false'
+      '$_routeUrl/${origin['lon']},${origin['lat']};'
+      '${destination['lon']},${destination['lat']}'
+      '?overview=full'
+      '&geometries=geojson'
       '&alternatives=false'
-      '&steps=false'
+      '&steps=false',
     );
 
     final response = await http.get(url).timeout(
-      const Duration(seconds: 10),
+      const Duration(seconds: 15),
       onTimeout: () => throw TimeoutException('OSRM request timed out'),
     );
 
     if (response.statusCode != 200) return null;
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final code = data['code'] as String?;
-    if (code != 'Ok') return null;
+    if (data['code'] != 'Ok') return null;
 
     final routes = data['routes'] as List<dynamic>?;
     if (routes == null || routes.isEmpty) return null;
 
     final route = routes[0] as Map<String, dynamic>;
-    final distanceMeters = route['distance'] as num?;
-    if (distanceMeters == null) return null;
 
-    return distanceMeters / 1000.0; // Convert to kilometers
+    final distanceKm = (route['distance'] as num) / 1000.0;
+    final durationSecs = (route['duration'] as num).toInt();
+
+    // Decode GeoJSON LineString coordinates → LatLng list
+    // GeoJSON coordinate order is [longitude, latitude]
+    final geometry = route['geometry'] as Map<String, dynamic>?;
+    final coords = geometry?['coordinates'] as List<dynamic>? ?? [];
+
+    // Sample every Nth point to keep the list manageable (~200 points max)
+    final total = coords.length;
+    final step = (total / 200).ceil().clamp(1, total);
+    final polyline = <LatLng>[];
+    for (int i = 0; i < total; i += step) {
+      final c = coords[i] as List<dynamic>;
+      polyline.add(LatLng(
+        (c[1] as num).toDouble(), // lat
+        (c[0] as num).toDouble(), // lon
+      ));
+    }
+    // Always include the last point
+    if (coords.isNotEmpty) {
+      final last = coords.last as List<dynamic>;
+      polyline.add(LatLng(
+        (last[1] as num).toDouble(),
+        (last[0] as num).toDouble(),
+      ));
+    }
+
+    return RouteData(
+      distanceKm: distanceKm,
+      duration: Duration(seconds: durationSecs),
+      polylinePoints: polyline,
+    );
   }
 
   /// Calculate straight-line distance using Haversine formula (fallback)

@@ -2,76 +2,80 @@
 
 This file provides guidance to agents when working with code in this repository.
 
-## Build & Test Commands
-- **Run app**: `flutter run`
-- **Build APK**: `flutter build apk --release`
-- **Build App Bundle**: `flutter build appbundle --release`
-- **Run tests**: `flutter test`
-- **Analyze code**: `flutter analyze`
-- **Get dependencies**: `flutter pub get`
+## Task Logging — REQUIRED for every task
+For every task created or completed, create a log file in `tasks_logs/` (project root, create if absent).
 
-## Firebase Cloud Functions
-- **Deploy functions**: `firebase deploy --only functions` (run from project root)
-- **Test locally**: `cd functions && npm run serve`
-- **Lint functions**: `cd functions && npm run lint`
-- Functions use Node.js 22 runtime (see firebase.json)
+**Filename format**: `yyyy-mm-ddTHH-mm-ss_<concise-task-summary>.md`
+**Example**: `tasks_logs/2026-06-17T10-30-00_road-trip-copilot-implementation.md`
 
-## Critical Non-Obvious Patterns
+**Required content**: Task title · Date/Time · Objective · Files created/modified · Key features · Status · Next steps
 
-### Service Initialization Order
-Services MUST be initialized in main.dart in this exact order:
-1. Firebase.initializeApp()
-2. TrainDataService().initialize()
-3. FirebaseDestinationsService().initialize()
-
-Changing this order will cause runtime failures due to Firebase dependency chain.
-
-### Singleton Pattern Usage
-All services use singleton pattern with factory constructors:
-```dart
-static final ServiceName _instance = ServiceName._internal();
-factory ServiceName() => _instance;
-ServiceName._internal();
+```markdown
+# Task: [Name]
+**Date**: 2026-06-17T10:30:00  **Status**: Completed
+## Objective
+## Changes Made
+- Created: file.dart
+- Modified: other.dart
+## Key Features Implemented
+## Next Steps
 ```
-Never instantiate services with `new` - always use `ServiceName()` to get singleton.
 
-### Firebase Remote Config Caching
-- Remote Config has 12-hour minimum fetch interval (see train_data_service.dart:25)
-- Services cache data in SharedPreferences with keys: `cached_train_data`, `cached_destinations_*`
-- Version keys track updates: `train_data_version`, `destinations_version_*`
-- Always check cache before fetching to avoid rate limits
+## Commands
+- `flutter run` · `flutter build apk --release` · `flutter analyze` · `flutter pub get`
+- Single test: `flutter test test/path/to_test.dart`
+- Run `.\update_documentation.ps1` after any change to check which sections of `TravelBuddyAI_Documentation.html` need updating (sections: Data Models, Services & APIs, Core Features, UI, Dependencies, Firebase, Architecture)
 
-### Destination Loading Strategy
-Three separate services handle destinations (non-obvious architecture):
-1. `DestinationsLoaderService` - loads from assets/destinations.json (static fallback)
-2. `FirebaseDestinationsService` - loads from Firebase Remote Config (dynamic updates)
-3. `FirestoreDestinationsService` - loads from Firestore (real-time data)
+## Service Initialization — STRICT ORDER in main.dart
+```dart
+await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+await TrainDataService().initialize();
+await FirebaseDestinationsService().initialize();
+await TollService().initialize();
+```
+Adding a service with `initialize()` MUST go here. Changing this order breaks Firebase dependency chain.
 
-Use FirebaseDestinationsService for production, others are fallbacks.
+## Singleton Pattern — ALL services
+```dart
+static final Foo _instance = Foo._internal();
+factory Foo() => _instance;
+Foo._internal();
+```
+Never use `new`. Always call `ServiceName()` to get the singleton.
 
-### Budget Calculations
-All budget calculations use round-trip multiplier (distance * 2) - see budget_service.dart:24, 40
-This is hardcoded and not configurable per trip type.
+## BudgetService always doubles distance (round-trip)
+`calculateFuelCost(distanceKm, origin)` and `calculateTollCharges(distanceKm, ...)` multiply distance × 2 internally. Pass one-way distance — the result is always round-trip cost. No configurable override exists.
 
-### Model fromJson Pattern
-All models use snake_case in JSON but camelCase in Dart:
-- JSON: `estimated_cost`, `budget_range`, `occasion_types`
-- Dart: `estimatedCost`, `budgetRange`, `occasionTypes`
+## Home screen feature routing — id-based dispatch
+Features are defined in `lib/services/ideas_service.dart` as a const list with string `id` keys. Navigation in `HomeScreen._openFeatureDetail()` switches on `id`. To wire a new screen, add an entry to `travelIdeas` and add an `if (id == 'X')` branch — there is no route table or named routes.
 
-### Pricing Service City Tiers
-PricingService uses undocumented city tier system (1-3) for flight pricing:
-- Tier 1: Metro cities (Mumbai, Delhi, Bangalore, etc.)
-- Tier 2: Major cities
-- Tier 3: Smaller cities
-See _getCityTier() method - not exposed in public API but affects all flight calculations.
+## Models barrel — always update
+All models are re-exported from `lib/models/models.dart`. New model files MUST be added there or imports across the app break.
 
-### Documentation Maintenance
-When modifying code, run `.\update_documentation.ps1` to check which documentation needs updates.
-The TravelBuddyAI_Documentation.html file (847 lines) must stay in sync with code changes.
+## SharedPreferences cache keys in use
+| Key | Owner |
+|---|---|
+| `cached_train_data` / `train_data_version` | TrainDataService |
+| `cached_destinations_*` / `destinations_version_*` | FirebaseDestinationsService |
+| `toll_plazas_cache` / `toll_plazas_version` | TollService (current version: `1.1`) |
+| `saved_trips` (max 50) | SavedTripsService |
 
-## Code Style
-- Uses flutter_lints package (standard Flutter lints)
-- No custom lint rules enabled in analysis_options.yaml
-- Prefer explicit types over `var` for public APIs
-- Use `const` constructors where possible
-- Services use dependency injection pattern (see BudgetService constructor accepting PricingService)
+Bump `_assetVersion` in TollService when `assets/toll_plazas.json` changes, or cached stale data will be served.
+
+## Routing / Maps — no Google Maps API key required
+- Geocoding: Nominatim (`nominatim.openstreetmap.org`) — free, requires `User-Agent: TravelBuddyAI/1.0` header
+- Routing: OSRM public instance (`router.project-osrm.org`) — free, no key
+- `MapsService.getRouteData()` returns `RouteData` (distance + duration + polyline). `getDistanceKm()` is a legacy thin wrapper.
+- Polyline uses GeoJSON order: `[lon, lat]` — reversed to `LatLng(lat, lon)` when decoded.
+
+## PricingService city matching — substring only
+`_extractState()` and `_getCityTier()` use `String.contains()` on lowercase input. "Bangalore" matches but "Bengaluru" does NOT match "bangalore" — both spellings must be present or calls fall through to defaults (tier 3 / ₹105/L fuel).
+
+## TollService matching
+Uses Haversine against route polyline points (radius 35 km). Zero results means either no polyline (OSRM failed) or no plazas in `assets/toll_plazas.json` for that corridor. Check the debug log: `TollService: matched X/73 plazas from Y polyline points`.
+
+## Code style
+- `dart:developer` (`developer.log(...)`) for all service logging — never `print()` in services
+- `withValues(alpha: x)` not `withOpacity(x)` (deprecated)
+- Explicit types on public APIs; `const` constructors where possible
+- JSON: snake_case keys → Dart: camelCase fields (enforced in all models)

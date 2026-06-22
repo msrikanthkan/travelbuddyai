@@ -1,96 +1,32 @@
-# AGENTS.md - Plan Mode Rules
+# AGENTS.md — Plan Mode
 
-This file provides architectural planning guidance for agents working in this Flutter/Dart repository.
+This file provides guidance to agents planning changes or new features in this repository.
 
-## Service Architecture Constraints
+## Architectural constraints
 
-### Singleton Pattern is Mandatory
-ALL services use singleton factory pattern:
-```dart
-static final ServiceName _instance = ServiceName._internal();
-factory ServiceName() => _instance;
-ServiceName._internal();
-```
-Never plan for services that use `new` keyword or multiple instances.
+### Service startup coupling
+`main.dart` initialisation is sequential and order-sensitive. Firebase must be first (Remote Config and Firestore depend on it). TollService must be last (no Firebase dependency, but convention). Any new service with async setup goes in this chain — a missing `initialize()` call causes silent failures, not crashes.
 
-### Service Initialization Order is Critical
-Firebase services have strict initialization dependencies (main.dart:13-21):
-1. Firebase.initializeApp() - Must be first
-2. TrainDataService().initialize() - Depends on Firebase
-3. FirebaseDestinationsService().initialize() - Depends on Firebase
+### BudgetService is not road-trip aware
+`calculateFuelCost()` and `calculateTollCharges()` always apply a × 2 round-trip multiplier with no override. Any one-way cost feature requires either: (a) dividing results by 2, or (b) adding a `oneWay` parameter — a breaking change to the existing budget planner.
 
-New services requiring Firebase must be initialized after Firebase.initializeApp().
+### TollService matching requires a polyline
+`getTollPlazasOnRoute()` returns nothing if `RouteDetails.polylinePoints` is empty. The polyline comes from `MapsService.getRouteData()` via OSRM — if OSRM times out (10–15s), toll matching silently returns 0 results. Plan for a timeout/fallback UX in any toll-dependent feature.
 
-### Three-Layer Data Loading Pattern
-Destinations use three-layer loading (non-standard architecture):
-1. Static assets (assets/destinations.json)
-2. Firebase Remote Config (dynamic updates)
-3. Firestore (real-time data)
+### Toll data coverage gaps
+`assets/toll_plazas.json` covers major NH corridors. State highways, Delhi-Mumbai Expressway, Pune-Nashik, and North-East India are missing. Plans that promise "all Indian toll plazas" require either: a paid API (TollGuru/MapmyIndia), an OSM data export script, or explicit scope limitation.
 
-When planning new features, consider which layer is appropriate:
-- Static: Rarely changing reference data
-- Remote Config: Periodic updates (12-hour minimum)
-- Firestore: Real-time or frequently changing data
+### Three destination services — only one wired
+New features should use `FirebaseDestinationsService` only. Do not couple new features to `FirestoreDestinationsService` (it exists but is not part of the production flow) unless explicitly migrating the architecture.
 
-## Data Model Constraints
+### No named routes / deep links
+The app uses `MaterialPageRoute` push-only navigation with id-string dispatch in `HomeScreen`. Adding deep linking or a bottom nav bar requires replacing this with a proper router (`go_router` or similar) — a significant refactor.
 
-### JSON Snake Case to Dart Camel Case
-All models must convert snake_case JSON to camelCase Dart properties.
-Plan API integrations with this conversion in mind.
+### PricingService city recognition is string-contains only
+Plans that extend pricing to new Indian cities must add city name strings to `_extractState()` and `_getCityTier()` in `pricing_service.dart`. The method has no fuzzy matching — "Bengaluru" and "Bangalore" are treated as different strings.
 
-### Round-Trip Calculations are Hardcoded
-Budget calculations multiply distance by 2 (budget_service.dart:24, 40).
-This is NOT configurable - plan features assuming round-trip only.
-One-way trip support would require architectural changes.
+### Google Maps widget not yet rendered
+`google_maps_flutter` is a dependency for `LatLng` type only. Route map display shows a placeholder. Rendering an actual interactive map requires a Google Maps API key, Android/iOS manifest config, and a `GoogleMap` widget — none of which are set up.
 
-## Firebase Remote Config Limitations
-
-### 12-Hour Minimum Fetch Interval
-Remote Config has 12-hour minimum fetch interval (train_data_service.dart:25).
-Plan features requiring frequent updates to use Firestore instead.
-
-### Caching Strategy Required
-All Remote Config services cache in SharedPreferences.
-Plan new Remote Config features with cache keys:
-- Data key: `cached_[feature]_data`
-- Version key: `[feature]_version`
-
-## Hidden Dependencies
-
-### City Tier System for Pricing
-PricingService has undocumented city tier system (pricing_service.dart:70).
-When planning pricing features, consider:
-- Tier 1: Metro cities (lower flight prices due to competition)
-- Tier 2: Major cities (moderate pricing)
-- Tier 3: Smaller cities (higher prices)
-
-This affects flight pricing but is not exposed in public API.
-
-### Dependency Injection Pattern
-Services use optional dependency injection (budget_service.dart:11):
-```dart
-BudgetService([PricingService? pricingService])
-    : _pricingService = pricingService ?? PricingService();
-```
-Plan new services with this pattern for testability.
-
-## Documentation Requirements
-
-### Documentation Must Stay in Sync
-TravelBuddyAI_Documentation.html (847 lines) must be updated for:
-- New features
-- Modified services
-- Changed data models
-- Updated dependencies
-
-Run `.\update_documentation.ps1` to check what needs updating.
-
-## Cloud Functions Architecture
-
-### Node.js 22 Runtime
-Firebase Cloud Functions use Node.js 22 (firebase.json).
-Plan functions with this runtime in mind.
-
-### Separate Deployment
-Functions have separate package.json and deploy independently:
-`firebase deploy --only functions`
+### SavedTripsService has a 50-trip hard cap
+`SavedTripsService` throws at write time when 50 trips exist. Any feature that auto-saves trips (e.g., auto-saving a planned road trip) must handle this exception in the UI.

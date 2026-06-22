@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/ideas_service.dart';
-import 'budget_planner_form.dart';
 import 'feature_detail_screen.dart';
+import 'road_trip_copilot_screen.dart';
 import 'trip_planner_screen1.dart';
 import 'my_trips_screen.dart';
 
@@ -19,33 +19,17 @@ class HomeScreen extends StatelessWidget {
 
   void _openFeatureDetail(BuildContext context, String id, String title, List<String> points) {
     if (id == '1') {
-      // Show dialog to choose between old and new trip planner
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Choose Trip Planner'),
-          content: const Text('Select which trip planner you want to use:'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const TripPlannerScreen1()),
-                );
-              },
-              child: const Text('New Multi-Step Planner'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const BudgetPlannerForm()),
-                );
-              },
-              child: const Text('Classic Planner'),
-            ),
-          ],
-        ),
+      // Navigate directly to multi-step planner
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const TripPlannerScreen1()),
+      );
+      return;
+    }
+
+    if (id == '9') {
+      // Road Trip Co-Pilot
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const RoadTripCopilotScreen()),
       );
       return;
     }
